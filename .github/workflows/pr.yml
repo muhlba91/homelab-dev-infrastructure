@@ -1,0 +1,392 @@
+---
+name: Pull Request
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conform:
+    runs-on: ubuntu-latest
+    name: Conform
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: siderolabs/conform@57c5cc3cabc0c9219d69673cfa8faa49c2db76fb # v0.1.0-alpha.32
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  yamllint:
+    runs-on: ubuntu-latest
+    name: YAMLLint
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - run: yamllint .
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+
+      # Go comes from mise; setup-go only restores the module cache.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache-dependency-path: infrastructure/go.sum
+
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          install-mode: none
+          working-directory: infrastructure
+          args: -c .golangci.yml
+          skip-cache: true
+          skip-save-cache: true
+
+      - run: |
+          go vet ./...
+        working-directory: infrastructure
+
+  test:
+    runs-on: ubuntu-latest
+    name: Unit Tests
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+
+      # Go comes from mise; setup-go only restores the module cache.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache-dependency-path: infrastructure/go.sum
+
+      - run: |
+          make test
+        working-directory: infrastructure
+        env:
+          RENDER_DIR: ${{ github.workspace }}/render
+
+      - run: |
+          go install github.com/mattn/goveralls@latest
+          goveralls -coverprofile=covprofile -service=github
+        working-directory: infrastructure
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hosts-test
+          path: render/outputs/hosts/
+          if-no-files-found: error
+          retention-days: 1
+
+      # The checks of the rendered host files (named by flake checks.nix): the deploy nodes and one per host.
+      - run: |
+          echo "checks=$(find render/outputs/hosts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "host-" + .]')" >> "$GITHUB_OUTPUT"
+        id: checks
+
+  nix-list-checks:
+    runs-on: ubuntu-latest
+    name: List Nix Checks
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          echo "checks=$(nix eval --json .#checks.x86_64-linux --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+        id: checks
+        working-directory: nix
+
+  nix-checks:
+    runs-on: ubuntu-latest
+    name: Nix Check
+    needs:
+      - nix-list-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.nix-list-checks.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK"
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}
+
+  preview:
+    runs-on: ubuntu-latest
+    name: Pulumi Preview
+    needs:
+      - yamllint
+      - lint
+      - test
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+
+      # Go comes from mise; setup-go only restores the module cache.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache-dependency-path: infrastructure/go.sum
+
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        id: import-secrets
+        with:
+          method: jwt
+          url: ${{ secrets.VAULT_ADDR }}
+          path: ${{ secrets.VAULT_PATH }}
+          role: ${{ secrets.VAULT_ROLE }}
+          exportToken: true
+          outputToken: true
+          secrets: |
+            github-homelab-dev-infrastructure/data/google-cloud region | CLOUDSDK_COMPUTE_REGION ;
+            github-homelab-dev-infrastructure/data/google-cloud workload_identity_provider | GOOGLE_WORKLOAD_IDENTITY_PROVIDER ;
+            github-homelab-dev-infrastructure/data/google-cloud ci_service_account | GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT ;
+            github-homelab-dev-infrastructure/data/scaleway organization_id | SCW_ORGANIZATION_ID ;
+            github-homelab-dev-infrastructure/data/scaleway project_id | SCW_PROJECT_ID ;
+            github-homelab-dev-infrastructure/data/scaleway region | SCW_DEFAULT_REGION ;
+            github-homelab-dev-infrastructure/data/scaleway zone | SCW_DEFAULT_ZONE ;
+            github-homelab-dev-infrastructure/data/scaleway access_key | SCW_ACCESS_KEY ;
+            github-homelab-dev-infrastructure/data/scaleway secret_key | SCW_SECRET_KEY ;
+            github-homelab-dev-infrastructure/data/scaleway region | AWS_REGION ;
+            github-homelab-dev-infrastructure/data/scaleway access_key | AWS_ACCESS_KEY_ID ;
+            github-homelab-dev-infrastructure/data/scaleway secret_key | AWS_SECRET_ACCESS_KEY
+
+      - uses: pulumi/auth-actions@273044cc19e63ea565285da8edd4e059126a0bdb # v2.1.2
+        with:
+          organization: muhlba91
+          requested-token-type: urn:pulumi:token-type:access_token:personal
+          scope: user:muhlba91
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT }}
+
+      - uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7
+        with:
+          command: preview
+          work-dir: infrastructure
+          stack-name: prod
+          comment-on-pr: true
+          refresh:
+            ${{ github.event.pull_request.head.repo.full_name == github.repository
+            }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      # The hosts' data before (the bucket: the last `pulumi up`) and after (the preview) this pull request.
+      - run: |
+          aws s3 cp --recursive --only-show-errors --endpoint-url "https://s3.$AWS_REGION.scw.cloud" \
+            "s3://$(yq '.config."homelab-dev-infrastructure:bucketId"' Pulumi.prod.yaml)/dev-infrastructure/prod/hosts/" live/
+          diff -ru live outputs/hosts > vars.diff || true
+          {
+            echo "### Host data (\`vars.nix\`): last \`pulumi up\` -> this pull request"
+            echo "A host missing in \`outputs/hosts\` is not rendered by the preview (e.g. a new host: its keys exist after \`pulumi up\`)."
+            echo '```diff'
+            head -c 60000 vars.diff
+            echo '```'
+          } > vars.md
+        working-directory: infrastructure
+
+      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: host-vars
+          path: infrastructure/vars.md
+
+      # outputs/keys/ holds the real keys and secrets after a preview: only hosts/ may be uploaded.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hosts-preview
+          path: infrastructure/outputs/hosts/
+          if-no-files-found: error
+          retention-days: 1
+
+      # The checks of the rendered host files (named by flake checks.nix): the deploy nodes and one per host.
+      - run: |
+          echo "checks=$(find infrastructure/outputs/hosts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "host-" + .]')" >> "$GITHUB_OUTPUT"
+        id: checks
+
+  nix-test:
+    runs-on: ubuntu-latest
+    name: Nix Test
+    needs:
+      - test
+      - nix-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.test.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: hosts-test
+          path: hosts
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK" --override-input hosts path:../hosts
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}
+
+  nix-build:
+    runs-on: ubuntu-latest
+    name: Nix Build
+    needs:
+      - test
+      - nix-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - hetzner-fra-dev-001
+    env:
+      HOST: ${{ matrix.host }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: hosts-test
+          path: hosts
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#nixosConfigurations.$HOST.config.system.build.toplevel" --override-input hosts path:../hosts
+        working-directory: nix
+
+  nix-preview:
+    runs-on: ubuntu-latest
+    name: Nix Preview
+    needs:
+      - preview
+      - nix-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.preview.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: hosts-preview
+          path: hosts
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK" --override-input hosts path:../hosts
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}

@@ -1,0 +1,263 @@
+# Eval tests (flake check `eval`, lib.runTests) on the fixtures in tests/hosts, independent of
+# the host data ./host injects: what the modules derive from the vars, and that invalid vars
+# fail evaluation (the assertions and the typed options). Empty result = all pass.
+{ lib, fixtures }:
+let
+  dev = fixtures.fixture-dev;
+  minimal = fixtures.fixture-minimal;
+
+  # Whether a fixture still evaluates with one more module (a failed assertion or a wrong
+  # option value throws).
+  evaluates =
+    system: module:
+    (builtins.tryEval
+      (system.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath
+    ).success;
+  fails = system: module: !(evaluates system module);
+in
+lib.runTests {
+  testHostnames = {
+    expr = lib.mapAttrs (_: s: s.config.networking.hostName) fixtures;
+    expected = {
+      fixture-dev = "fixture-dev";
+      fixture-minimal = "fixture-minimal";
+    };
+  };
+
+  # The qemu profile boots with either firmware and wipes only dev.hardware.disk.
+  testBootLoader = {
+    expr = {
+      inherit (dev.config.boot.loader.grub) devices efiInstallAsRemovable;
+      disks = lib.attrNames dev.config.disko.devices.disk;
+    };
+    expected = {
+      devices = [ "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi0" ];
+      efiInstallAsRemovable = true;
+      disks = [ "main" ];
+    };
+  };
+
+  # The data disk: by label, in the initrd, never part of disko.
+  testDataDisk = {
+    expr = {
+      inherit (dev.config.fileSystems."/data") device fsType neededForBoot;
+    };
+    expected = {
+      device = "/dev/disk/by-label/data";
+      fsType = "ext4";
+      neededForBoot = true;
+    };
+  };
+
+  # The user: pinned ids, home on /data, linger, no sudo, SSH keys outside the home.
+  testUser = {
+    expr =
+      let
+        u = dev.config.users.users.daniel;
+      in
+      {
+        inherit (u)
+          uid
+          group
+          home
+          linger
+          extraGroups
+          ;
+        subUid = map (r: r.startUid) u.subUidRanges;
+        mutable = dev.config.users.mutableUsers;
+      };
+    expected = {
+      uid = 1000;
+      group = "users";
+      home = "/data/home/daniel";
+      linger = true;
+      extraGroups = [ ];
+      subUid = [ 100000 ];
+      mutable = false;
+    };
+  };
+
+  # git signs with the machine key's file when there is one, and not at all without.
+  testGitSigning = {
+    expr =
+      map
+        (
+          s:
+          let
+            # programs.git.config is a list of attribute sets (merged in order).
+            g = lib.foldl' lib.recursiveUpdate { } (lib.toList s.config.programs.git.config);
+          in
+          {
+            sign = g.commit.gpgsign or false;
+            format = g.gpg.format or null;
+            key = g.user.signingkey or null;
+          }
+        )
+        [
+          dev
+          minimal
+        ];
+    expected = [
+      {
+        sign = true;
+        format = "ssh";
+        key = "/var/lib/secrets/github-ssh-key";
+      }
+      {
+        sign = false;
+        format = null;
+        key = null;
+      }
+    ];
+  };
+
+  # The secrets each fixture needs, and the machine key readable by the user only.
+  testSecrets = {
+    expr = {
+      dev = lib.attrNames dev.config.dev.secrets;
+      minimal = lib.attrNames minimal.config.dev.secrets;
+      githubKey = {
+        inherit (dev.config.dev.secrets.github-ssh-key) owner mode;
+      };
+    };
+    expected = {
+      dev = [
+        "coder-admin-password"
+        "github-ssh-key"
+        "ssh-host-key"
+      ];
+      minimal = [ ];
+      githubKey = {
+        owner = "daniel";
+        mode = "0400";
+      };
+    };
+  };
+
+  # Coder runs as the user (no own user, no createLocally), PostgreSQL on the data disk with
+  # the peer map, the bootstrap as the user with the password as a credential.
+  testCoder = {
+    expr = {
+      inherit (dev.config.services.coder) user group;
+      inherit (dev.config.services.coder.database) createLocally username;
+      coderUser = dev.config.users.users ? coder;
+      pgDataDir = lib.hasPrefix "/data/postgresql/" dev.config.services.postgresql.dataDir;
+      identMap = lib.hasInfix "coder daniel coder" dev.config.services.postgresql.identMap;
+      configDir = dev.config.systemd.services.coder.environment.CODER_CONFIG_DIR;
+      bootstrapUser = dev.config.systemd.services.coder-bootstrap.serviceConfig.User;
+      bootstrapCredential = dev.config.systemd.services.coder-bootstrap.serviceConfig.LoadCredential;
+      minimal = minimal.config.services.coder.enable;
+    };
+    expected = {
+      user = "daniel";
+      group = "users";
+      createLocally = false;
+      username = "coder";
+      coderUser = false;
+      pgDataDir = true;
+      identMap = true;
+      configDir = "/data/coder/config";
+      bootstrapUser = "daniel";
+      bootstrapCredential = "admin-password:/var/lib/secrets/coder-admin-password";
+      minimal = false;
+    };
+  };
+
+  # Static addresses; IPv6 with router advertisements (route and DNS), never SLAAC or DHCPv6.
+  testNetwork = {
+    expr = map (
+      s:
+      let
+        n = s.config.systemd.network.networks."10-lan";
+      in
+      {
+        inherit (n) address;
+        ra = n.networkConfig.IPv6AcceptRA;
+        raConfig = n.ipv6AcceptRAConfig or { };
+        routes = map (r: r.Gateway) n.routes;
+      }
+    ) [
+      dev
+      minimal
+    ];
+    expected = [
+      {
+        address = [
+          "10.46.60.1/16"
+          "fd46::60:1/64"
+        ];
+        ra = true;
+        raConfig = {
+          UseAutonomousPrefix = false;
+          DHCPv6Client = false;
+          UseDNS = true;
+          UseDomains = false;
+        };
+        routes = [ "10.46.0.1" ];
+      }
+      {
+        address = [ "10.46.60.2/16" ];
+        ra = false;
+        raConfig = { };
+        routes = [ "10.46.0.1" ];
+      }
+    ];
+  };
+
+  # SSH (and Coder's port when enabled) only from the trusted networks.
+  testFirewall = {
+    expr =
+      map
+        (s: {
+          ssh = lib.hasInfix "ip saddr { 10.0.0.0/8 } tcp dport { 22" s.config.networking.firewall.extraInputRules;
+          coder = lib.hasInfix "3000 }" s.config.networking.firewall.extraInputRules;
+          open = s.config.networking.firewall.allowedTCPPorts;
+        })
+        [
+          dev
+          minimal
+        ];
+    expected = [
+      {
+        ssh = true;
+        coder = true;
+        open = [ ];
+      }
+      {
+        ssh = true;
+        coder = false;
+        open = [ ];
+      }
+    ];
+  };
+
+  # Invalid vars fail evaluation.
+  testInvalid = {
+    expr = {
+      lowUid = fails minimal { dev.user.uid = lib.mkForce 999; };
+      badMac = fails minimal { dev.network.mac = lib.mkForce "bc:24:11:00:00"; };
+      badCidr = fails minimal { dev.network.v4.address = lib.mkForce "10.46.60.2"; };
+      v6NoRoute = fails dev {
+        dev.network.v6 = lib.mkForce {
+          address = "fd46::60:1/64";
+          acceptRA = false;
+        };
+      };
+      nameMismatch = fails minimal { dev.host.name = lib.mkForce "other"; };
+      deployableWithoutKeys = fails minimal {
+        dev.meta.deployable = lib.mkForce true;
+        dev.mgmt.sshKeys = lib.mkForce [ ];
+      };
+      valid = evaluates minimal { };
+    };
+    expected = {
+      lowUid = true;
+      badMac = true;
+      badCidr = true;
+      v6NoRoute = true;
+      nameMismatch = true;
+      deployableWithoutKeys = true;
+      valid = true;
+    };
+  };
+}

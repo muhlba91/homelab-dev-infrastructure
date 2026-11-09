@@ -1,0 +1,52 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "github>muhlba91/renovate-config",
+        "github>muhlba91/renovate-config:automerge(patch)",
+        "github>muhlba91/renovate-config:automerge(minor)",
+        "github>muhlba91/renovate-config:group-go",
+        "github>muhlba91/renovate-config:group-pulumi"
+    ],
+    "timezone": "Europe/Vienna",
+    "enabledManagers": [
+        "dockerfile",
+        "github-actions",
+        "gomod",
+        "nix",
+        "pre-commit",
+        "mise"
+    ],
+    "nix": {
+        "enabled": true
+    },
+    "lockFileMaintenance": {
+        "enabled": true,
+        "automerge": false,
+        "schedule": [
+            "after 8am and before 12pm on sunday"
+        ]
+    },
+    "packageRules": [
+        {
+            "description": "A NixOS release (nixpkgs branch nixos-YY.MM) needs a review: never automerge",
+            "matchManagers": [
+                "nix"
+            ],
+            "matchDepNames": [
+                "nixpkgs"
+            ],
+            "matchUpdateTypes": [
+                "major",
+                "minor"
+            ],
+            "automerge": false
+        },
+        {
+            "description": "flake.lock (lock file maintenance) changes the dev VM's system: merging it is the moment the VM changes, so never automerge (D17)",
+            "matchManagers": [
+                "nix"
+            ],
+            "automerge": false
+        }
+    ]
+}

@@ -1,0 +1,72 @@
+---
+# required host settings
+# the file is named after the host, optionally prefixed with its deploy order: [<order>-]<name>.yml
+# (categories: 0xx test systems, 1xx OVH, 2xx Hetzner, 9xx physical sites)
+name: host
+enabled: false
+
+# optional deploy settings
+deploy:
+  # CI deploys the host after every `pulumi up` on main (only an enabled host); off: by hand only (./host deploy)
+  automated: false
+
+# required hardware settings
+hardware:
+  # a file in nix/hardware/: qemu (any x86_64 VM, BIOS or UEFI; the OS disk plus the data disk labelled `data`)
+  profile: qemu
+  # the OS disk (wiped by every install): with the data disk attached, its stable path, never /dev/sdX
+  disk: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi0
+
+# optional system settings
+system:
+  # 0s = off; needs a watchdog device (Proxmox q35: built in; none, e.g. a cloud VM: 0s)
+  watchdog: 60s
+  gc:
+    olderThan: 7d
+    keep: 3
+
+# required network settings: one NIC on the site LAN, static addresses
+network:
+  domain: site.internal.example
+  # the NIC is renamed by its MAC: a wrong MAC locks the host out
+  mac: "bc:24:11:00:00:00"
+  interface: lan0
+  v4:
+    address: 10.46.0.10
+    netmask: 16
+    gateway: 10.46.0.1
+  # optional: a static address; the default route and DNS come from the router advertisements (acceptRA, default true;
+  # never an address: no SLAAC, no DHCPv6) and/or the gateway (optional; needed with acceptRA: false)
+  v6:
+    address: "fd46::10"
+    netmask: 64
+    gateway: "fd46::1"
+    acceptRA: true
+  # optional: default the IPv4 gateway (the site router's DNS)
+  nameservers:
+    - 10.46.0.1
+  # optional: default the IPv4 address
+  # managementAddress: 10.46.0.10
+  # optional: who may reach SSH (and Coder); default 10.0.0.0/8, fc00::/7, 2001:678:dc0::/48
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+      - "2001:678:dc0::/48"
+
+# required user settings: the human user (home on /data, the GitHub machine key, no sudo); SSH keys: assets/ssh/*.pub
+user:
+  name: user
+  # pinned: files on /data keep their owner across reinstalls
+  uid: 1000
+  git:
+    name: User Name
+    email: user@example.org
+
+# optional Coder settings: Coder runs as the user, workspaces are directories in ~/workspaces
+coder:
+  # an enabled Coder gets a generated admin password (secrets/coder-admin-password)
+  enabled: false
+  # optional: default http://<mgmt address>:3000
+  # accessUrl: http://10.46.0.10:3000

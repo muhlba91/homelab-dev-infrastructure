@@ -1,0 +1,274 @@
+---
+name: Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    name: Pulumi Preview
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+
+      # Go comes from mise; setup-go only restores the module cache.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache-dependency-path: infrastructure/go.sum
+
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        id: import-secrets
+        with:
+          method: jwt
+          url: ${{ secrets.VAULT_ADDR }}
+          path: ${{ secrets.VAULT_PATH }}
+          role: ${{ secrets.VAULT_ROLE }}
+          exportToken: true
+          outputToken: true
+          secrets: |
+            github-homelab-dev-infrastructure/data/google-cloud region | CLOUDSDK_COMPUTE_REGION ;
+            github-homelab-dev-infrastructure/data/google-cloud workload_identity_provider | GOOGLE_WORKLOAD_IDENTITY_PROVIDER ;
+            github-homelab-dev-infrastructure/data/google-cloud ci_service_account | GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT ;
+            github-homelab-dev-infrastructure/data/scaleway organization_id | SCW_ORGANIZATION_ID ;
+            github-homelab-dev-infrastructure/data/scaleway project_id | SCW_PROJECT_ID ;
+            github-homelab-dev-infrastructure/data/scaleway region | SCW_DEFAULT_REGION ;
+            github-homelab-dev-infrastructure/data/scaleway zone | SCW_DEFAULT_ZONE ;
+            github-homelab-dev-infrastructure/data/scaleway access_key | SCW_ACCESS_KEY ;
+            github-homelab-dev-infrastructure/data/scaleway secret_key | SCW_SECRET_KEY
+
+      - uses: pulumi/auth-actions@273044cc19e63ea565285da8edd4e059126a0bdb # v2.1.2
+        with:
+          organization: muhlba91
+          requested-token-type: urn:pulumi:token-type:access_token:personal
+          scope: user:muhlba91
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT }}
+
+      - uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7
+        with:
+          command: preview
+          work-dir: infrastructure
+          stack-name: prod
+          refresh: true
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      # outputs/keys/ holds the real keys and secrets after a preview: only hosts/ may be uploaded.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hosts-preview
+          path: infrastructure/outputs/hosts/
+          if-no-files-found: error
+          retention-days: 1
+
+      # The checks of the rendered host files (named by flake checks.nix): the deploy nodes and one per host.
+      - run: |
+          echo "checks=$(find infrastructure/outputs/hosts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "host-" + .]')" >> "$GITHUB_OUTPUT"
+        id: checks
+
+  nix-preview:
+    runs-on: ubuntu-latest
+    name: Nix Preview
+    needs:
+      - preview
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.preview.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: hosts-preview
+          path: hosts
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK" --override-input hosts path:../hosts
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    name: Pulumi Deploy
+    needs:
+      - preview
+      - nix-preview
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      hosts: ${{ steps.hosts.outputs.hosts }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          cache: false
+
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        id: import-secrets
+        with:
+          method: jwt
+          url: ${{ secrets.VAULT_ADDR }}
+          path: ${{ secrets.VAULT_PATH }}
+          role: ${{ secrets.VAULT_ROLE }}
+          exportToken: true
+          outputToken: true
+          secrets: |
+            github-homelab-dev-infrastructure/data/google-cloud region | CLOUDSDK_COMPUTE_REGION ;
+            github-homelab-dev-infrastructure/data/google-cloud workload_identity_provider | GOOGLE_WORKLOAD_IDENTITY_PROVIDER ;
+            github-homelab-dev-infrastructure/data/google-cloud ci_service_account | GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT ;
+            github-homelab-dev-infrastructure/data/scaleway organization_id | SCW_ORGANIZATION_ID ;
+            github-homelab-dev-infrastructure/data/scaleway project_id | SCW_PROJECT_ID ;
+            github-homelab-dev-infrastructure/data/scaleway region | SCW_DEFAULT_REGION ;
+            github-homelab-dev-infrastructure/data/scaleway zone | SCW_DEFAULT_ZONE ;
+            github-homelab-dev-infrastructure/data/scaleway access_key | SCW_ACCESS_KEY ;
+            github-homelab-dev-infrastructure/data/scaleway secret_key | SCW_SECRET_KEY
+
+      - uses: pulumi/auth-actions@273044cc19e63ea565285da8edd4e059126a0bdb # v2.1.2
+        with:
+          organization: muhlba91
+          requested-token-type: urn:pulumi:token-type:access_token:personal
+          scope: user:muhlba91
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT }}
+
+      - uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7
+        with:
+          command: up
+          work-dir: infrastructure
+          stack-name: prod
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The hosts CI deploys (deploy.automated), in deploy order, from the host data `pulumi up` just wrote.
+      - run: |
+          echo "hosts=$(./host hosts | awk '$3 == "automated=true" { print $1 }' | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+        id: hosts
+        working-directory: nix
+
+  host-deploy:
+    runs-on: ubuntu-latest
+    name: Host Deploy
+    needs:
+      - deploy
+    if: needs.deploy.outputs.hosts != '[]'
+    permissions:
+      id-token: write
+      contents: read
+    # One host at a time, in deploy order; a failure stops the rest.
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        host: ${{ fromJSON(needs.deploy.outputs.hosts) }}
+    env:
+      HOST: ${{ matrix.host }}
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        id: import-secrets
+        with:
+          method: jwt
+          url: ${{ secrets.VAULT_ADDR }}
+          path: ${{ secrets.VAULT_PATH }}
+          role: ${{ secrets.VAULT_ROLE }}
+          exportToken: true
+          outputToken: true
+          secrets: |
+            github-homelab-dev-infrastructure/data/tailscale oauth_client_id | TS_OAUTH_CLIENT_ID ;
+            github-homelab-dev-infrastructure/data/tailscale oauth_secret | TS_OAUTH_SECRET ;
+            github-homelab-dev-infrastructure/data/scaleway region | AWS_REGION ;
+            github-homelab-dev-infrastructure/data/scaleway access_key | AWS_ACCESS_KEY_ID ;
+            github-homelab-dev-infrastructure/data/scaleway secret_key | AWS_SECRET_ACCESS_KEY
+
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        with:
+          oauth-client-id: ${{ env.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ env.TS_OAUTH_SECRET }}
+          tags: tag:github-actions
+
+      # The host data and this host's keys from the bucket, where `pulumi up` writes them locally (./host's default).
+      - run: |
+          umask 077
+          aws s3 cp --recursive --only-show-errors --endpoint-url "https://s3.$AWS_REGION.scw.cloud" \
+            "s3://$(yq '.config."homelab-dev-infrastructure:bucketId"' Pulumi.prod.yaml)/dev-infrastructure/prod/" \
+            outputs/ --exclude "*" --include "hosts/*" --include "keys/$HOST/*"
+        working-directory: infrastructure
+
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          ./host deploy "$HOST"
+        working-directory: nix
+
+      - run: |
+          health=$(./host health "$HOST") || rc=$?
+          echo "$health"
+          grep "^warn" <<< "$health" | while read -r line; do echo "::warning title=$HOST::$line"; done || true
+          exit "${rc:-0}"
+        working-directory: nix

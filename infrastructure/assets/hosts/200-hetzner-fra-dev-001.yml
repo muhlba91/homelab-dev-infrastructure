@@ -1,0 +1,50 @@
+---
+# required host settings
+name: hetzner-fra-dev-001
+# enabled once the VM exists and the values marked "confirm" are set
+enabled: false
+
+# optional deploy settings
+deploy:
+  automated: true
+
+# required hardware settings
+hardware:
+  profile: qemu
+  # confirm on the VM (ls -l /dev/disk/by-id/)
+  disk: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi0
+
+# required network settings
+network:
+  domain: fra.hetzner.internal.muehlbachler.io
+  # confirm: set when the VM is created (Proxmox accepts a given MAC)
+  mac: "bc:24:11:00:00:01"
+  interface: lan0
+  # confirm: outside the router's DHCP pool (10.100.150.1-10.100.199.255)
+  v4:
+    address: 10.100.60.1
+    netmask: 16
+    gateway: 10.100.0.1
+  # confirm: in the site LAN's public /80, outside the router's DHCPv6 pool; default route and DNS from the router
+  # advertisements
+  v6:
+    address: "2a01:4f8:121:14e2:100::60:1"
+    netmask: 80
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+      - "2001:678:dc0::/48"
+
+# required user settings
+user:
+  name: daniel
+  uid: 1000
+  git:
+    name: Daniel Muehlbachler-Pietrzykowski
+    email: daniel@muehlbachler.io
+
+# optional Coder settings
+coder:
+  enabled: false
