@@ -1,4 +1,4 @@
-# Fixture: a dev host with everything on (IPv6, pinned host key, GitHub machine key, Docker with open ports, Coder with backups).
+# Fixture: a dev host with everything on (IPv6, pinned host key, GitHub machine key, Docker with open ports, Coder with backups, Vault Agent).
 # Evaluation only (meta.deployable = false); the keys are throw-away public keys.
 {
   dev = {
@@ -53,5 +53,9 @@
     };
     coder.enable = true;
     backup.repository = "s3:https://s3.fr-par.scw.cloud/fixture-backups/dev/fixture-dev";
+    vault = {
+      enable = true;
+      address = "https://vault.example.org:8200";
+    };
   };
 }

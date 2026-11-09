@@ -8,7 +8,7 @@ remote workspaces ([Coder](https://coder.com)) and long-running agents, using [P
 the layout and tooling of [homelab-router-infrastructure](https://github.com/muhlba91/homelab-router-infrastructure).
 
 For each enabled host, it creates the deploy SSH key, the host's SSH host key, the GitHub machine key (authentication
-and commit signing) and, if the host runs Coder, Coder's admin password and the backup credentials, and renders the host's `vars.nix` which the
+and commit signing) and, if the host runs Coder, Coder's admin password and the backup credentials, if it runs the Vault Agent, the AppRole secret ID, and renders the host's `vars.nix` which the
 NixOS configuration consumes.
 
 The plan and the decision log: [plan.md](plan.md).
@@ -57,6 +57,7 @@ pulumi up
 | `outputs/keys/<host>/secrets/coder-admin-password` | Coder's first (admin) user (hosts with Coder) |
 | `outputs/keys/<host>/secrets/restic-password` | the password of the host's restic repositories (hosts with Coder) |
 | `outputs/keys/<host>/secrets/restic-s3` | the S3 keys of the host's backup application, an environment file (hosts with Coder) |
+| `outputs/keys/<host>/secrets/vault-role-id`, `vault-secret-id` | the Vault Agent's AppRole login (hosts with `vault.enabled`) |
 
 Stack output `hosts.<host>`:
 
@@ -75,12 +76,19 @@ Stack output `hosts.<host>`:
 | `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_REGION` | the Scaleway bucket the host data is uploaded to |
 | `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID` | required: the organization and project of the backup applications (the buckets' project; the provider's own `SCW_DEFAULT_*` are not used) |
 | `GOOGLE_APPLICATION_CREDENTIALS` (or `gcloud auth application-default login`) | the secrets provider (Cloud KMS) |
+| `VAULT_TOKEN` | Vault (address: stack config `vault:address`): reads the hosts' AppRole role IDs and manages their secret IDs (CI: the repository's JWT role) |
 
 Locally they live in `local.env` (git-ignored).
 
 ---
 
 ## Configuration
+
+### Vault
+
+`vault:address`: the Vault provider's address. The AppRole roles `dev-infrastructure-<host>` and their policies are
+created by github-infrastructure (the repository's `accessPermissions.vault.appRoles`); this program reads the role ID
+and creates a secret ID (rotated every 90 days).
 
 ### Bucket
 
@@ -141,8 +149,12 @@ Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fix
 - **Backups** (hosts with Coder): Coder's database is dumped nightly to `/data/backup/coder` and backed up with restic
   to `dev/<host>/coder/` in the backup bucket (the last 3 snapshots plus one each from the previous two weeks, pruned after every backup). `./host deploy` runs the backup before every
   deploy that changes the system (`SKIP_BACKUP=1` skips it). Restore: [install.md](docs/install.md#restoring-coders-database).
+- **Vault Agent** (`vault.enabled`): its own user `vault-agent` logs in with the host's AppRole role and keeps a
+  short-lived token (read-only on the KV mounts) in `/run/vault-agent/token`, readable by the group `vault-token` (the
+  user). `VAULT_ADDR` and a token helper are set for shells and user units: `vault`, fnox (`vault print token`) and
+  Pulumi's Vault provider (`TERRAFORM_VAULT_SKIP_CHILD_TOKEN`) find the token; `vault login` cannot replace it.
 - `dev-health` (`./host health`): failed units (system and the user's, a failed backup included), data disk usage,
-  Coder answering, Docker running, pending reboot.
+  Coder answering, the Vault token, Docker running, pending reboot.
 
 ### Ports
 

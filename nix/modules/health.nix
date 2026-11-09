@@ -1,6 +1,7 @@
 # `dev-health` (./host health, after every deploy): no unit has failed (system and the user's
 # user manager), the data disk is mounted and below 80% (a warning above), Coder answers (hosts
-# with Coder), the user's rootless Docker runs (hosts with Docker); a failed backup is a failed
+# with Coder), the Vault Agent has a token (a failed lookup is a warning: Vault may be
+# unreachable), the user's rootless Docker runs (hosts with Docker); a failed backup is a failed
 # unit; a pending reboot (the booted kernel, initrd or modules are not
 # the current system's) is a warning. Exits 1 on a failure.
 {
@@ -21,6 +22,10 @@ in
         pkgs.util-linux
         pkgs.systemd
         pkgs.curl
+      ]
+      ++ lib.optionals cfg.vault.enable [
+        pkgs.vault
+        pkgs.jq
       ];
       text = ''
         rc=0
@@ -39,6 +44,15 @@ in
             echo "ok   coder: healthy"
           else
             echo "FAIL coder: /healthz does not answer"; rc=1
+          fi
+        ''}
+        ${lib.optionalString cfg.vault.enable ''
+          if [ ! -s /run/vault-agent/token ]; then
+            echo "FAIL vault: the agent has no token"; rc=1
+          elif ttl=$(VAULT_ADDR=${cfg.vault.address} VAULT_TOKEN=$(cat /run/vault-agent/token) vault token lookup -format=json 2>/dev/null | jq -er .data.ttl); then
+            echo "ok   vault: token valid (ttl ''${ttl}s)"
+          else
+            echo "warn vault: the token does not look up (Vault unreachable?)"
           fi
         ''}
         ${lib.optionalString cfg.docker.enable ''

@@ -80,3 +80,11 @@ coder:
   enabled: false
   # optional: default http://<mgmt address>:3000
   # accessUrl: http://10.46.0.10:3000
+
+# optional Vault Agent settings: logs in with the AppRole role dev-infrastructure-<name> (created by
+# github-infrastructure: the repository's accessPermissions.vault.appRoles) and keeps a short-lived token for the user
+# (`vault`, fnox and Pulumi find it); an enabled agent gets secrets/vault-role-id and secrets/vault-secret-id
+vault:
+  enabled: false
+  # required when enabled
+  address: https://vault.example.org:8200

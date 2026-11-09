@@ -1,5 +1,6 @@
 config:
   homelab-dev-infrastructure:bucketId: infrastructure-assets-5274ba70-fde0-47de-8e9a-f1bc64c11157
   homelab-dev-infrastructure:backupBucketId: infrastructure-backups-5274ba70-fde0-47de-8e9a-f1bc64c11157
+  vault:address: https://vault.platform.muehlbachler.io:8200
 secretsprovider: gcpkms://projects/tuxnet-385112/locations/europe/keyRings/infrastructure-encryption/cryptoKeys/infrastructure-encryption
 encryptedkey: CiQA9PdEcGsNAbaVpnZIX1TeGIolbFlhtCxsIkmh4pZ1vQzrK8MSSQA2N6cC+f9bWBHVbYM3waTLVHFiDfuHWEXvSYpfub1rrLinmQum1RW3qguFrRFKltdGag/IusErJdb3kZ5V8+0vNIFtPalOHjI=

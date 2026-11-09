@@ -155,6 +155,9 @@ func checkRequired(h *host.Config) error {
 // (`trustedNetworks.v4: []` would open the host to the default networks instead of closing it).
 // h: The host configuration.
 func checkLists(h *host.Config) error {
+	if h.UsesVault() && (h.Vault.Address == nil || *h.Vault.Address == "") {
+		return errors.New("vault.address is required when vault.enabled is true")
+	}
 	if h.Docker != nil && h.Docker.TrustedPorts != nil && len(h.Docker.TrustedPorts) == 0 {
 		return errors.New("docker.trustedPorts must not be empty (omit it for none)")
 	}

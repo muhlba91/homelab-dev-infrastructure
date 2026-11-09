@@ -87,7 +87,8 @@ func render(t *testing.T, dir string, enable bool) {
 }
 
 // assertKeys checks the key and secret files of an enabled host: the ones every host gets, and the Coder admin
-// password and the backup credentials exactly when the host runs Coder.
+// password and the backup credentials exactly when the host runs Coder, the Vault Agent's login exactly when it runs
+// the agent.
 func assertKeys(t *testing.T, host *hostModel.Config) {
 	t.Helper()
 
@@ -99,6 +100,13 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 
 	for _, name := range []string{"coder-admin-password", "restic-password", "restic-s3"} {
 		if host.UsesCoder() {
+			assert.FileExists(t, filepath.Join(secrets, name))
+		} else {
+			assert.NoFileExists(t, filepath.Join(secrets, name))
+		}
+	}
+	for _, name := range []string{"vault-role-id", "vault-secret-id"} {
+		if host.UsesVault() {
 			assert.FileExists(t, filepath.Join(secrets, name))
 		} else {
 			assert.NoFileExists(t, filepath.Join(secrets, name))

@@ -15,6 +15,7 @@
     ./docker.nix
     ./coder.nix
     ./backup.nix
+    ./vault-agent.nix
     ./health.nix
   ];
 }

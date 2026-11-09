@@ -14,6 +14,7 @@ import (
 
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/backup"
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/config"
+	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/vault"
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/model/config/host"
 )
 
@@ -40,13 +41,16 @@ type Data struct {
 	// Backup holds the credentials of the host's database backups; nil for a disabled host or one without Coder
 	// (the only application with a database so far).
 	Backup *backup.Credentials
+	// Vault holds the Vault Agent's AppRole login; nil for a disabled host or one without the agent.
+	Vault *vault.Credentials
 	// Vars is the content of the vars.nix file of the host.
 	Vars pulumi.StringOutput
 }
 
 // ConfigureHost creates the resources of a host and renders its vars.nix. An enabled host gets a deploy key, an SSH
 // host key, a GitHub machine key and, if it runs Coder, a Coder admin password and backup credentials (its restic
-// repositories in the backup bucket). A disabled host gets none of them
+// repositories in the backup bucket), and if it runs the Vault Agent, the AppRole role ID and a secret ID. A disabled
+// host gets none of them
 // (disabling a host deletes them); its vars.nix holds only the static SSH keys, so it is still rendered and checked,
 // but not deployable.
 // ctx: The Pulumi context.
@@ -111,6 +115,14 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 		backupCredentials = creds
 		backupRepository = backup.Repository(h.Name)
 	}
+	var vaultCredentials *vault.Credentials
+	if h.UsesVault() {
+		creds, vErr := vault.Create(ctx, h.Name)
+		if vErr != nil {
+			return nil, vErr
+		}
+		vaultCredentials = creds
+	}
 
 	// An error returned from the apply fails the update instead of writing an empty file.
 	vars, _ := pulumi.All(deployKey.PublicKeyOpenssh, hostKey.PublicKeyOpenssh, githubKey.PublicKeyOpenssh).
@@ -134,6 +146,7 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 		GitHubKey:          githubKey,
 		CoderAdminPassword: coderAdminPassword,
 		Backup:             backupCredentials,
+		Vault:              vaultCredentials,
 		Vars:               vars,
 	}, nil
 }

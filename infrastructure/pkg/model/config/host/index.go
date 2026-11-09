@@ -8,6 +8,9 @@ const defaultEnabled = false
 // defaultCoderEnabled is the default of CoderConfig.Enabled (the Nix default of dev.coder.enable).
 const defaultCoderEnabled = false
 
+// defaultVaultEnabled is the default of VaultConfig.Enabled (the Nix default of dev.vault.enable).
+const defaultVaultEnabled = false
+
 // Config defines Host-related configuration.
 type Config struct {
 	// Name is the name of the host: also its hostname and the name of its file ([<order>-]<name>.yml).
@@ -35,6 +38,8 @@ type Config struct {
 	Docker *DockerConfig `yaml:"docker,omitempty"`
 	// Coder is the configuration of the Coder server.
 	Coder *CoderConfig `yaml:"coder,omitempty"`
+	// Vault is the configuration of the Vault Agent.
+	Vault *VaultConfig `yaml:"vault,omitempty"`
 }
 
 // IsEnabled reports whether the host is enabled (deployable); unset means disabled.
@@ -45,4 +50,9 @@ func (c *Config) IsEnabled() bool {
 // UsesCoder reports whether the host runs the Coder server (coder.enabled).
 func (c *Config) UsesCoder() bool {
 	return c.Coder != nil && defaults.GetOrDefault(c.Coder.Enabled, defaultCoderEnabled)
+}
+
+// UsesVault reports whether the host runs the Vault Agent (vault.enabled).
+func (c *Config) UsesVault() bool {
+	return c.Vault != nil && defaults.GetOrDefault(c.Vault.Enabled, defaultVaultEnabled)
 }

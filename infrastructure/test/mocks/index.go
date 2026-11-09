@@ -28,6 +28,9 @@ func (Mocks) NewResource(args pulumi.MockResourceArgs) (string, resource.Propert
 	case "scaleway:iam/apiKey:ApiKey":
 		outputs["accessKey"] = resource.NewStringProperty("SCWMOCKACCESSKEY")
 		outputs["secretKey"] = resource.MakeSecret(resource.NewStringProperty("mock-secret-key-" + args.Name))
+	case "vault:appRole/authBackendRoleSecretId:AuthBackendRoleSecretId":
+		outputs["secretId"] = resource.MakeSecret(resource.NewStringProperty("mock-secret-id-" + args.Name))
+		outputs["accessor"] = resource.NewStringProperty("mock-accessor-" + args.Name)
 	case "time:index/rotating:Rotating":
 		outputs["rfc3339"] = resource.NewStringProperty("2026-01-01T00:00:00Z")
 	}
@@ -35,8 +38,12 @@ func (Mocks) NewResource(args pulumi.MockResourceArgs) (string, resource.Propert
 	return args.Name + "-id", outputs, nil
 }
 
-// Call returns the arguments of a function call unchanged.
+// Call returns the arguments of a function call, plus the role ID of a looked-up AppRole role.
 // args: The function's token and arguments.
 func (Mocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
-	return args.Args, nil
+	outputs := args.Args.Copy()
+	if args.Token == "vault:appRole/getAuthBackendRoleId:getAuthBackendRoleId" {
+		outputs["roleId"] = resource.NewStringProperty("mock-role-id")
+	}
+	return outputs, nil
 }

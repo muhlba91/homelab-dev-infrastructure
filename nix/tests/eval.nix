@@ -127,6 +127,8 @@ lib.runTests {
         "restic-password"
         "restic-s3"
         "ssh-host-key"
+        "vault-role-id"
+        "vault-secret-id"
       ];
       minimal = [ ];
       githubKey = {
@@ -333,6 +335,59 @@ lib.runTests {
     };
   };
 
+  # The Vault Agent as its own pinned user, the only reader of the secret ID; the token sink for
+  # the group vault-token (the user); the secret ID file is never deleted by the agent; the CLI
+  # finds the token through the helper, in shells and in the user manager.
+  testVault = {
+    expr =
+      let
+        c = dev.config;
+        a = c.services.vault-agent.instances.dev;
+      in
+      {
+        agentUser = {
+          inherit (c.users.users.vault-agent) uid group;
+        };
+        tokenGroup = {
+          inherit (c.users.groups.vault-token) gid members;
+        };
+        secretId = {
+          inherit (c.dev.secrets.vault-secret-id) owner group mode;
+        };
+        removeSecretId =
+          (builtins.head a.settings.auto_auth.method).config.remove_secret_id_file_after_reading;
+        sink = (builtins.head a.settings.auto_auth.sink).config;
+        addr = c.environment.variables.VAULT_ADDR;
+        configPath = c.environment.variables ? VAULT_CONFIG_PATH;
+        userManager = lib.hasInfix "VAULT_ADDR=https://vault.example.org:8200" c.systemd.user.extraConfig;
+        minimal = minimal.config.services.vault-agent.instances ? dev;
+      };
+    expected = {
+      agentUser = {
+        uid = 950;
+        group = "vault-token";
+      };
+      tokenGroup = {
+        gid = 950;
+        members = [ "daniel" ];
+      };
+      secretId = {
+        owner = "vault-agent";
+        group = "vault-token";
+        mode = "0400";
+      };
+      removeSecretId = false;
+      sink = {
+        path = "/run/vault-agent/token";
+        mode = 288;
+      };
+      addr = "https://vault.example.org:8200";
+      configPath = true;
+      userManager = true;
+      minimal = false;
+    };
+  };
+
   # Invalid vars fail evaluation.
   testInvalid = {
     expr = {
@@ -347,6 +402,7 @@ lib.runTests {
       };
       nameMismatch = fails minimal { dev.host.name = lib.mkForce "other"; };
       badPort = fails dev { dev.docker.trustedPorts = lib.mkForce [ "8000:8999" ]; };
+      vaultNoAddress = fails dev { dev.vault.address = lib.mkForce null; };
       deployableWithoutKeys = fails minimal {
         dev.meta.deployable = lib.mkForce true;
         dev.mgmt.sshKeys = lib.mkForce [ ];
@@ -360,6 +416,7 @@ lib.runTests {
       v6NoRoute = true;
       nameMismatch = true;
       badPort = true;
+      vaultNoAddress = true;
       deployableWithoutKeys = true;
       valid = true;
     };

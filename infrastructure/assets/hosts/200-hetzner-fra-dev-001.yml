@@ -48,3 +48,8 @@ docker:
 # optional Coder settings
 coder:
   enabled: true
+
+# optional Vault Agent settings
+vault:
+  enabled: true
+  address: https://vault.platform.muehlbachler.io:8200

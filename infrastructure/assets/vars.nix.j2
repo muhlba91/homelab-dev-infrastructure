@@ -146,6 +146,17 @@ Conventions (as in the router repo):
     };
     {{- end }}
 
+    {{- with .Host.Vault }}
+    vault = {
+      {{- with .Enabled }}
+      enable = {{ . }};
+      {{- end }}
+      {{- with .Address }}
+      address = "{{ . }}";
+      {{- end }}
+    };
+    {{- end }}
+
     {{- with .BackupRepository }}
     backup.repository = "{{ . }}";
     {{- end }}

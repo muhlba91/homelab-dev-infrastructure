@@ -1,4 +1,5 @@
-# Vars schema: the services on the host (Docker: Phase 2, Coder and its backups: Phase 3).
+# Vars schema: the services on the host (Docker: Phase 2, Coder and its backups: Phase 3, the
+# Vault Agent: Phase 4).
 { lib, ... }:
 let
   inherit (lib) types;
@@ -36,5 +37,13 @@ in
       `coder-admin-password` (the first user).
     '';
     accessUrl = nullable types.str "URL Coder is reached at (null: http://<mgmt.address>:3000).";
+  };
+
+  options.dev.vault = {
+    enable = bool false ''
+      The Vault Agent: logs in with the AppRole role dev-infrastructure-<host> (secrets
+      `vault-role-id`, `vault-secret-id`) and keeps a short-lived token for the host's user.
+    '';
+    address = nullable types.str "URL of Vault (required when enabled).";
   };
 }

@@ -1,7 +1,7 @@
 # Host validation
 
 Run after an install and after changes that touch the base system. `./host health <host>` covers the automatic part
-(failed units, data disk usage, Coder answering, Docker running, pending reboot).
+(failed units, data disk usage, Coder answering, the Vault token, Docker running, pending reboot).
 
 ## Phase 1
 
@@ -38,3 +38,13 @@ Run as the host's user (an SSH session sets `DOCKER_HOST`):
 - [ ] `sudo systemctl start restic-backups-coder` succeeds, `sudo restic-coder snapshots` lists it; the restore drill
   in [install.md](install.md#restoring-coders-database) works
 - [ ] `./host deploy` of a system change prints "host: backup (restic-backups-coder.service)" first
+
+## Phase 4: Vault Agent
+
+Run as the host's user:
+
+- [ ] `vault token lookup` shows the policy `dev-infrastructure-<host>` and a TTL that keeps refreshing over a day
+- [ ] `vault kv get` of a path the policy allows works; a write is denied; `vault login` does not replace the token
+- [ ] `cat /var/lib/secrets/vault-secret-id` is denied
+- [ ] `fnox exec` in a pilot repository works
+- [ ] a rotated secret ID (`pulumi up` + `./host push-secrets <host>`) restarts the agent with no manual step
