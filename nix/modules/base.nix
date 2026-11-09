@@ -18,6 +18,8 @@ in
     }
   ];
 
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) cfg.unfree;
+
   networking.hostName = cfg.host.hostname;
   networking.domain = cfg.host.domain;
   time.timeZone = cfg.host.timezone;

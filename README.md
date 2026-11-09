@@ -22,8 +22,9 @@ The plan and the decision log: [plan.md](plan.md).
 - [nix/](nix/): the NixOS configuration (a flake): `modules/` (one module set for every host; the vars schema in
   `modules/options/`), `hardware/` (hardware profiles), `coder/templates/` (Coder templates shipped with the system),
   `tests/` (checks, eval tests, fixtures), `host`, `nx` and its image (`Containerfile`)
-- [docs/](docs/): [Proxmox](docs/proxmox.md) (VM, first install), [install and operations](docs/install.md),
-  [validation](docs/validation.md), [Phase 0 Coder spike](docs/spike.md)
+- [docs/](docs/): [Proxmox](docs/proxmox.md) (VM, sizing, first install), [install and operations](docs/install.md)
+  (GitHub key, reinstall, growing the data disk), [validation](docs/validation.md), [VS Code](docs/vscode.md),
+  [Coder spike](docs/spike.md)
 
 ---
 
@@ -111,6 +112,20 @@ From `nix/` (everything runs through `./nx`, in podman on the Mac):
 ```
 
 Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fixtures in `nix/tests/hosts/`.
+
+### What runs on a host
+
+- **Storage:** the OS disk (disko, wiped by every install) and the data disk at `/data` (homes, Coder, PostgreSQL;
+  never touched by an install, grows with the disk).
+- **The user:** pinned uid, home on `/data`, linger, SSH keys only, no sudo; git signs every commit with the GitHub
+  machine key.
+- **Development environment:** nix-ld (prebuilt runtimes, the VS Code Server), envfs, mise (from nixos-unstable: the
+  repositories require a newer version than the release ships), direnv, `gh`, `vault` and the usual CLI tools.
+- **Coder** (`coder.enabled`): runs as the user with the built-in provisioner; workspaces are directories in
+  `~/workspaces` with a `coder agent` user unit (`nix/coder/templates/local-dir`). A workspace clones its repository
+  once, then fetches and fast-forwards a clean branch with an upstream and runs `mise install` at every start and
+  hourly (`sync.sh`); local changes and other branches are never touched.
+- `dev-health` (`./host health`): failed units (system and the user's), data disk usage, pending reboot.
 
 ### Ports
 

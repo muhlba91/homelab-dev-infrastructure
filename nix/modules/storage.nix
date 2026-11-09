@@ -12,6 +12,9 @@ in
     device = "/dev/disk/by-label/${s.dataLabel}";
     fsType = "ext4";
     neededForBoot = true;
+    # The disk has no partition table: after growing it in Proxmox, the filesystem grows at the
+    # next boot (or live: resize2fs /dev/disk/by-label/<label>).
+    autoResize = true;
     options = [
       "noatime"
       "discard"

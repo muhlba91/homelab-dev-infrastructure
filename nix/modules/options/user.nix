@@ -8,6 +8,7 @@ let
     nullable
     strList
     typed
+    typedD
     ;
 in
 {
@@ -28,6 +29,11 @@ in
         `github-ssh-key`): git's allowed signers. null = no machine key (git does not sign).
       '';
     };
+
+    unfree = typedD (types.listOf types.str) [ ] ''
+      Unfree nixpkgs packages allowed on the host, by name (`lib.getName`); modules add the ones
+      they need (one predicate: two modules cannot each set allowUnfreePredicate).
+    '';
 
     storage = {
       dataLabel = strD "data" ''

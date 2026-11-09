@@ -10,6 +10,8 @@
     ./time.nix
     ./storage.nix
     ./users.nix
+    ./nix-ld.nix
+    ./mise.nix
     ./coder.nix
     ./health.nix
   ];

@@ -1,0 +1,36 @@
+# VS Code on the Mac
+
+Two ways to work on the host from VS Code; both reach the same directories (`~/workspaces/<workspace>`), so they can be
+mixed. Mac checkouts stay separate and sync through git.
+
+## Coder workspaces
+
+With the [Coder extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): log in to the
+host's Coder URL (`http://<address>:3000`), then open a workspace from the extension's list. Or without the extension:
+
+```bash
+coder login http://<address>:3000
+coder config-ssh            # adds coder.<workspace> hosts to ~/.ssh/config
+```
+
+Then "Remote-SSH: Connect to Host…" → `coder.<workspace>`. The connection goes through Coder to the workspace's agent;
+terminals start in the workspace directory with the workspace's environment.
+
+## Plain Remote-SSH
+
+`~/.ssh/config` (the dotfiles' `config.d/`):
+
+```text
+Host <host>
+  HostName <address>
+  User <user>
+```
+
+"Remote-SSH: Connect to Host…" → `<host>`, then open `~/workspaces/<workspace>` (or any directory). The YubiKey
+authenticates; on the host, git uses the machine key for GitHub and signs every commit.
+
+## On the host
+
+The VS Code Server that Remote-SSH and the Coder extension download is a generic Linux binary: it runs through nix-ld.
+Extensions with native parts (language servers) do as well; if one fails with a missing library, add it to
+`programs.nix-ld.libraries` in `nix/modules/nix-ld.nix`.

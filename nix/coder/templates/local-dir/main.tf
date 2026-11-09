@@ -20,7 +20,7 @@ data "coder_workspace_owner" "me" {}
 data "coder_parameter" "repo" {
   name         = "repo"
   display_name = "Repository"
-  description  = "Optional: an SSH URL to clone into the workspace (git@github.com:owner/repo.git), with the machine key."
+  description  = "Optional: a repository to clone into the workspace (git@github.com:owner/repo.git: the machine key); kept up to date while the working tree is clean."
   type         = "string"
   default      = ""
   mutable      = false
@@ -44,18 +44,33 @@ resource "coder_agent" "main" {
   env = {
     GIT_SSH_COMMAND = "ssh"
   }
+}
 
-  startup_script_behavior = "non-blocking"
-  startup_script          = <<-EOT
-    set -eu
-    cd "${local.dir}"
-    if [ -n "${data.coder_parameter.repo.value}" ] && [ ! -d .git ]; then
-      git clone "${data.coder_parameter.repo.value}" .
-    fi
-    if command -v mise >/dev/null 2>&1 && { [ -f mise.toml ] || [ -f .mise.toml ]; }; then
-      mise trust && mise install
-    fi
-  EOT
+# The sync (sync.sh): clone, fetch, fast-forward only a clean branch with an upstream, mise install.
+locals {
+  sync = join("\n", [
+    "export WORKSPACE_DIR='${local.dir}' WORKSPACE_REPO='${data.coder_parameter.repo.value}'",
+    file("${path.module}/sync.sh"),
+  ])
+}
+
+# At every agent start (workspace start, VM reboot, a deploy restarting the agent).
+resource "coder_script" "sync_start" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Sync"
+  icon               = "/icon/git.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = local.sync
+}
+
+# Hourly while the workspace runs (Coder's cron has a seconds field).
+resource "coder_script" "sync_hourly" {
+  agent_id     = coder_agent.main.id
+  display_name = "Sync (hourly)"
+  icon         = "/icon/git.svg"
+  cron         = "0 0 * * * *"
+  script       = local.sync
 }
 
 # The directory: created on the first start, destroyed only when the workspace is deleted.

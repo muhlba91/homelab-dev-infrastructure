@@ -21,20 +21,27 @@ export LAN_MAC=bc:24:11:00:00:01      # the host file's network.mac
 | `machine` | `q35` | PCIe chipset; the ICH9 watchdog (`iTCO_wdt`) is built in for the host file's `system.watchdog` |
 | `bios` | `seabios` or `ovmf` | the `qemu` profile boots with either (OVMF: EFI disk with `pre-enrolled-keys=0`) |
 | `cpu` | `host` | all host CPU features |
+| `numa` | `0` (default) | only useful when the VM spans several host NUMA nodes (`lscpu \| grep -i numa` on the host: one node on a single-socket server); no CPU/memory hotplug needed |
 | `cores` / `memory` / `balloon` | `8` / `24576`-`32768` / `0` | 2-4 concurrent workspaces plus agents; no ballooning |
 | `net0` | `virtio`, the host file's MAC, `vmbr10`, `queues` = 4 | the host renames its NIC by MAC |
 | `scsihw` | `virtio-scsi-single` | one controller per disk, `iothread` per disk |
 | `scsi0` (OS) | 64 GB, `iothread=1`, `discard=on`, `ssd=1` | wiped by every install (disko); the host file's `hardware.disk` is its stable path |
 | `scsi1` (data) | 200-500 GB, `iothread=1`, `discard=on`, `ssd=1` | `/data`: homes, workspaces, Coder, PostgreSQL; never touched by an install |
 | `agent` | `1` | the QEMU guest agent (clean shutdown, IP display) |
+| `allow-ksm` | `0` | no page merging with other VMs: small savings next to a few dissimilar VMs, and memory deduplication opens timing side channels to a VM holding keys and tokens |
 
 ```bash
 qm create "$DEV_VMID" --name <host> --machine q35 --cpu host --cores 8 --memory 32768 --balloon 0 \
-  --agent 1 --onboot 1 --startup order=2 --scsihw virtio-scsi-single \
+  --agent 1 --allow-ksm 0 --onboot 1 --startup order=2 --scsihw virtio-scsi-single \
   --net0 "virtio=${LAN_MAC},bridge=vmbr10,queues=4" \
   --scsi0 local-lvm:64,iothread=1,discard=on,ssd=1 \
   --scsi1 local-lvm:300,iothread=1,discard=on,ssd=1
 ```
+
+Sizing: the OS disk holds only the Nix store (the system, up to `system.gc.keep` generations, builds during a
+deploy), the journal and the secrets; everything else is on the data disk (homes, mise runtimes, Docker images and
+volumes, caches, Coder and PostgreSQL). The data disk can grow later without downtime
+([install.md](install.md#growing-the-data-disk)); CPU and memory can be raised with a full stop and start.
 
 With two disks, `/dev/sda` and `/dev/sdb` are not stable: the host file names the OS disk by its stable path,
 `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi0` (check it in the installer: `ls -l /dev/disk/by-id/`).

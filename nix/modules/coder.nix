@@ -35,8 +35,8 @@ let
   ];
 in
 lib.mkIf c.enable {
-  # Terraform is BSL-licensed (unfree in nixpkgs); allowed for this one package.
-  nixpkgs.config.allowUnfreePredicate = pkg: lib.getName pkg == "terraform";
+  # Terraform is BSL-licensed (unfree in nixpkgs).
+  dev.unfree = [ "terraform" ];
 
   # The agent of a workspace runs this binary (/run/current-system/sw/bin/coder): always the
   # server's version, and never a store path the garbage collection could remove.

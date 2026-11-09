@@ -165,21 +165,24 @@ lib.runTests {
 
   # Static addresses; IPv6 with router advertisements (route and DNS), never SLAAC or DHCPv6.
   testNetwork = {
-    expr = map (
-      s:
-      let
-        n = s.config.systemd.network.networks."10-lan";
-      in
-      {
-        inherit (n) address;
-        ra = n.networkConfig.IPv6AcceptRA;
-        raConfig = n.ipv6AcceptRAConfig or { };
-        routes = map (r: r.Gateway) n.routes;
-      }
-    ) [
-      dev
-      minimal
-    ];
+    expr =
+      map
+        (
+          s:
+          let
+            n = s.config.systemd.network.networks."10-lan";
+          in
+          {
+            inherit (n) address;
+            ra = n.networkConfig.IPv6AcceptRA;
+            raConfig = n.ipv6AcceptRAConfig or { };
+            routes = map (r: r.Gateway) n.routes;
+          }
+        )
+        [
+          dev
+          minimal
+        ];
     expected = [
       {
         address = [
@@ -229,6 +232,39 @@ lib.runTests {
         open = [ ];
       }
     ];
+  };
+
+  # nix-ld for prebuilt binaries (also in the user manager), mise's system config, the unfree
+  # packages allowed (Terraform only with Coder).
+  testDevEnv = {
+    expr = {
+      nixLd = dev.config.programs.nix-ld.enable;
+      userManager = lib.hasInfix "NIX_LD=" dev.config.systemd.user.extraConfig;
+      envfs = dev.config.services.envfs.enable;
+      # The repositories' mise.toml set min_version.
+      miseVersion = lib.versionAtLeast dev.pkgs.mise.version "2026.10.0";
+      mise =
+        lib.hasInfix ''trusted_config_paths = ["/data/home/daniel/workspaces"]''
+          dev.config.environment.etc."mise/config.toml".text;
+      unfree = map (s: lib.sort lib.lessThan s.config.dev.unfree) [
+        dev
+        minimal
+      ];
+    };
+    expected = {
+      nixLd = true;
+      userManager = true;
+      envfs = true;
+      miseVersion = true;
+      mise = true;
+      unfree = [
+        [
+          "terraform"
+          "vault"
+        ]
+        [ "vault" ]
+      ];
+    };
   };
 
   # Invalid vars fail evaluation.
