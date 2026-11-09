@@ -1,0 +1,59 @@
+# Database backups (Phase 3 of the plan, D11): Coder's PostgreSQL database is dumped nightly
+# into /data/backup/coder and backed up with restic to the backup bucket (dev/<host>/coder; the last
+# 3 snapshots plus the latest of the previous two weeks). The credentials (secrets `restic-password`, `restic-s3`: the S3
+# keys as an environment file) come from Pulumi. `./host deploy` runs the backup before every
+# deploy that changes the system: a Coder schema migration or a PostgreSQL change cannot be
+# rolled back, the dump can. Restore: docs/install.md.
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  cfg = config.dev;
+  repository = cfg.backup.repository;
+  dumpDir = "${cfg.storage.dataDir}/backup/coder";
+  pg = config.services.postgresql.package;
+in
+lib.mkIf (cfg.coder.enable && repository != null) {
+  dev.secrets.restic-password = { };
+  dev.secrets.restic-s3 = { };
+
+  systemd.tmpfiles.rules = [
+    "d ${cfg.storage.dataDir}/backup 0700 root root -"
+    "d ${dumpDir} 0700 root root -"
+  ];
+
+  services.restic.backups.coder = {
+    repository = "${repository}/coder";
+    initialize = true;
+    passwordFile = config.dev.secrets.restic-password.path;
+    environmentFile = config.dev.secrets.restic-s3.path;
+    paths = [ dumpDir ];
+    # The dump as postgres (peer authentication), written by root: a failed dump fails the
+    # backup and keeps the previous file.
+    backupPrepareCommand = ''
+      #!${pkgs.runtimeShell}
+      set -eu
+      ${pkgs.util-linux}/bin/runuser -u postgres -- ${pg}/bin/pg_dump --format=custom --dbname=coder > ${dumpDir}/coder.dump.new
+      mv ${dumpDir}/coder.dump.new ${dumpDir}/coder.dump
+    '';
+    # The last 3 snapshots (nightly and before deploys) and the latest of each of the last 3
+    # calendar weeks: this week's is among the last 3, so one from last week and one from the
+    # week before. Pruned after every backup.
+    pruneOpts = [
+      "--keep-last 3"
+      "--keep-weekly 3"
+    ];
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+  };
+  systemd.services.restic-backups-coder = {
+    after = [ "postgresql.service" ];
+    requires = [ "postgresql.service" ];
+  };
+}

@@ -1,9 +1,11 @@
 # `dev-health` (./host health, after every deploy): no unit has failed (system and the user's
-# user manager), the data disk is mounted and below 80% (a warning above); a pending reboot (the
-# booted kernel, initrd or modules are not the current system's) is a warning. Exits 1 on a
-# failure.
+# user manager), the data disk is mounted and below 80% (a warning above), Coder answers (hosts
+# with Coder), the user's rootless Docker runs (hosts with Docker); a failed backup is a failed
+# unit; a pending reboot (the booted kernel, initrd or modules are not
+# the current system's) is a warning. Exits 1 on a failure.
 {
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -18,6 +20,7 @@ in
         pkgs.coreutils
         pkgs.util-linux
         pkgs.systemd
+        pkgs.curl
       ];
       text = ''
         rc=0
@@ -31,6 +34,20 @@ in
         else
           echo "FAIL ${cfg.storage.dataDir} is not mounted"; rc=1
         fi
+        ${lib.optionalString cfg.coder.enable ''
+          if curl -fsS -m 5 -o /dev/null http://127.0.0.1:3000/healthz; then
+            echo "ok   coder: healthy"
+          else
+            echo "FAIL coder: /healthz does not answer"; rc=1
+          fi
+        ''}
+        ${lib.optionalString cfg.docker.enable ''
+          if systemctl --machine=${cfg.user.name}@.host --user is-active --quiet docker 2>/dev/null; then
+            echo "ok   docker (${cfg.user.name}): active"
+          else
+            echo "FAIL docker (${cfg.user.name}): not active"; rc=1
+          fi
+        ''}
         for p in kernel initrd kernel-modules; do
           if [ "$(readlink /run/booted-system/$p)" != "$(readlink /run/current-system/$p)" ]; then
             echo "warn reboot required: the booted $p is not the current one"

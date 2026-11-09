@@ -12,7 +12,9 @@
     ./users.nix
     ./nix-ld.nix
     ./mise.nix
+    ./docker.nix
     ./coder.nix
+    ./backup.nix
     ./health.nix
   ];
 }

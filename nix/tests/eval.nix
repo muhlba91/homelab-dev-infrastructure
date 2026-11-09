@@ -124,6 +124,8 @@ lib.runTests {
       dev = [
         "coder-admin-password"
         "github-ssh-key"
+        "restic-password"
+        "restic-s3"
         "ssh-host-key"
       ];
       minimal = [ ];
@@ -207,13 +209,14 @@ lib.runTests {
     ];
   };
 
-  # SSH (and Coder's port when enabled) only from the trusted networks.
+  # SSH (and Coder's port and Docker's open ports when enabled) only from the trusted networks.
   testFirewall = {
     expr =
       map
         (s: {
           ssh = lib.hasInfix "ip saddr { 10.0.0.0/8 } tcp dport { 22" s.config.networking.firewall.extraInputRules;
-          coder = lib.hasInfix "3000 }" s.config.networking.firewall.extraInputRules;
+          coder = lib.hasInfix ", 3000" s.config.networking.firewall.extraInputRules;
+          docker = lib.hasInfix ", 8000-8999 }" s.config.networking.firewall.extraInputRules;
           open = s.config.networking.firewall.allowedTCPPorts;
         })
         [
@@ -224,11 +227,13 @@ lib.runTests {
       {
         ssh = true;
         coder = true;
+        docker = true;
         open = [ ];
       }
       {
         ssh = true;
         coder = false;
+        docker = false;
         open = [ ];
       }
     ];
@@ -267,6 +272,67 @@ lib.runTests {
     };
   };
 
+  # Rootless Docker for the user only (no docker group), never restarted by a deploy, localhost
+  # as the default bind address, DOCKER_HOST in the user manager (next to nix-ld's variables).
+  testDocker = {
+    expr = {
+      rootless = map (s: s.config.virtualisation.docker.rootless.enable) [
+        dev
+        minimal
+      ];
+      daemon = dev.config.virtualisation.docker.enable;
+      ip =
+        let
+          d = dev.config.virtualisation.docker.rootless.daemon.settings;
+        in
+        [
+          d.ip
+          d.default-network-opts.bridge."com.docker.network.bridge.host_binding_ipv4"
+        ];
+      condition = dev.config.systemd.user.services.docker.unitConfig.ConditionUser;
+      inherit (dev.config.systemd.user.services.docker) restartIfChanged;
+      userManager = map (v: lib.hasInfix v dev.config.systemd.user.extraConfig) [
+        "DOCKER_HOST=unix:///run/user/1000/docker.sock"
+        "NIX_LD="
+      ];
+      inherit (dev.config.users.users.daniel) extraGroups;
+    };
+    expected = {
+      rootless = [
+        true
+        false
+      ];
+      daemon = false;
+      ip = [
+        "127.0.0.1"
+        "127.0.0.1"
+      ];
+      condition = "daniel";
+      restartIfChanged = false;
+      userManager = [
+        true
+        true
+      ];
+      extraGroups = [ ];
+    };
+  };
+
+  # Coder's database backed up with restic to <repository>/coder, nightly; only with a repository.
+  testBackup = {
+    expr = {
+      repository = dev.config.services.restic.backups.coder.repository;
+      inherit (dev.config.services.restic.backups.coder) passwordFile environmentFile paths;
+      minimal = minimal.config.services.restic.backups ? coder;
+    };
+    expected = {
+      repository = "s3:https://s3.fr-par.scw.cloud/fixture-backups/dev/fixture-dev/coder";
+      passwordFile = "/var/lib/secrets/restic-password";
+      environmentFile = "/var/lib/secrets/restic-s3";
+      paths = [ "/data/backup/coder" ];
+      minimal = false;
+    };
+  };
+
   # Invalid vars fail evaluation.
   testInvalid = {
     expr = {
@@ -280,6 +346,7 @@ lib.runTests {
         };
       };
       nameMismatch = fails minimal { dev.host.name = lib.mkForce "other"; };
+      badPort = fails dev { dev.docker.trustedPorts = lib.mkForce [ "8000:8999" ]; };
       deployableWithoutKeys = fails minimal {
         dev.meta.deployable = lib.mkForce true;
         dev.mgmt.sshKeys = lib.mkForce [ ];
@@ -292,6 +359,7 @@ lib.runTests {
       badCidr = true;
       v6NoRoute = true;
       nameMismatch = true;
+      badPort = true;
       deployableWithoutKeys = true;
       valid = true;
     };

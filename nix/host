@@ -10,8 +10,9 @@
 #   ./host fmt                           format all .nix files (nixfmt, the flake's formatter)
 #   ./host dump <host>                   evaluated config as JSON (diff before/after a refactor)
 #   ./host push-secrets <host>           deliver $OUTPUTS/keys/<host>/secrets/ to the host
-#   ./host deploy <host> [deploy args]   push secrets, then deploy-rs (magic rollback); without
-#                                        args, skipped if the host already runs this system
+#   ./host deploy <host> [deploy args]   push secrets, run the host's backups, then deploy-rs (magic
+#                                        rollback); without args, skipped if the host already runs
+#                                        this system. SKIP_BACKUP=1: no backup first
 #   ./host health <host>                 failed units, data disk usage, pending reboot (warning)
 #   ./host install <host> <ip>           first install / reinstall: nixos-anywhere (+ secrets);
 #                                        wipes the OS disk, never the data disk (label `data`)
@@ -21,7 +22,7 @@
 # any folder of the same layout works. Without host data: the fixtures in tests/hosts.
 set -eu
 cd "$(dirname "$0")"
-usage() { sed -n '2,21p' "$0"; exit 1; }
+usage() { sed -n '2,22p' "$0"; exit 1; }
 die() { echo "host: $*" >&2; exit 1; }
 SECRETS_DIR=/var/lib/secrets # must match modules/secrets.nix
 
@@ -93,6 +94,13 @@ case "$cmd" in
       if [ "$want" = "$have" ]; then push_secrets "$host" prune; echo "host: $host already runs $want"; exit 0; fi
     fi
     if [ "$dry" = 1 ]; then echo "host: dry run, secrets not pushed"; else push_secrets "$host"; fi
+    # The system changes: back up the databases first (a schema migration cannot be rolled
+    # back, a dump can). A failed backup stops the deploy. Hosts without backups have no unit.
+    if [ "$dry" = 0 ] && [ "${SKIP_BACKUP:-0}" != 1 ]; then
+      # shellcheck disable=SC2016 # expands on the host
+      ./nx -r ssh "deploy@$MGMT" 'for u in $(systemctl list-unit-files --no-legend "restic-backups-*.service" | cut -d" " -f1); do
+          echo "host: backup ($u)"; sudo systemctl start "$u" || exit 1; done' || die "backup failed (SKIP_BACKUP=1 deploys without)"
+    fi
     # --skip-checks: `./host check` is the gate (deploy-rs would rerun every check).
     # shellcheck disable=SC2086
     ./nx deploy --skip-checks ".#$host" "$@" -- $OVERRIDE

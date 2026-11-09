@@ -31,6 +31,8 @@ type Config struct {
 	Network *NetworkConfig `yaml:"network"`
 	// User is the configuration of the host's (human) user.
 	User *UserConfig `yaml:"user"`
+	// Docker is the configuration of the user's rootless Docker daemon.
+	Docker *DockerConfig `yaml:"docker,omitempty"`
 	// Coder is the configuration of the Coder server.
 	Coder *CoderConfig `yaml:"coder,omitempty"`
 }

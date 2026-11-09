@@ -1,4 +1,4 @@
-# Fixture: a dev host with everything on (IPv6, pinned host key, GitHub machine key, Coder).
+# Fixture: a dev host with everything on (IPv6, pinned host key, GitHub machine key, Docker with open ports, Coder with backups).
 # Evaluation only (meta.deployable = false); the keys are throw-away public keys.
 {
   dev = {
@@ -47,6 +47,11 @@
       githubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhl/9WAbovwuyCeVz+1yll3s5SVzWSnukMPnLs7a1ri fixture-github";
     };
 
+    docker = {
+      enable = true;
+      trustedPorts = [ "8000-8999" ];
+    };
     coder.enable = true;
+    backup.repository = "s3:https://s3.fr-par.scw.cloud/fixture-backups/dev/fixture-dev";
   };
 }

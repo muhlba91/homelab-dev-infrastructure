@@ -57,7 +57,7 @@ func Run(ctx *pulumi.Context) error {
 // writeOutputFiles writes the files of a host below outputs/ (the layout ./host reads) and uploads them to the
 // bucket under the same paths: hosts/<host>/vars.nix and, for an enabled host, keys/<host>/deploy-key (the deploy
 // user's private key) and keys/<host>/secrets/ (pushed to the host: the SSH host key, the GitHub machine key, the
-// Coder admin password).
+// Coder admin password, the backup credentials).
 // ctx: The Pulumi context.
 // name: The name of the host.
 // hostData: The generated resources and files of the host.
@@ -83,6 +83,12 @@ func writeOutputFiles(ctx *pulumi.Context, name string, hostData *host.Data) err
 	}
 	if hostData.CoderAdminPassword != nil {
 		files = append(files, outputFile{secretsDir, "coder-admin-password", *hostData.CoderAdminPassword})
+	}
+	if hostData.Backup != nil {
+		files = append(files,
+			outputFile{secretsDir, "restic-password", hostData.Backup.Password},
+			outputFile{secretsDir, "restic-s3", hostData.Backup.S3Environment},
+		)
 	}
 
 	for _, file := range files {

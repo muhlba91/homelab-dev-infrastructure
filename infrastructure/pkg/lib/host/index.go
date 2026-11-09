@@ -12,6 +12,7 @@ import (
 	tlsProv "github.com/pulumi/pulumi-tls/sdk/v5/go/tls"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/backup"
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/config"
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/model/config/host"
 )
@@ -36,12 +37,16 @@ type Data struct {
 	// CoderAdminPassword is the password of Coder's first (admin) user (secret); nil for a disabled host or one
 	// without Coder.
 	CoderAdminPassword *pulumi.StringOutput
+	// Backup holds the credentials of the host's database backups; nil for a disabled host or one without Coder
+	// (the only application with a database so far).
+	Backup *backup.Credentials
 	// Vars is the content of the vars.nix file of the host.
 	Vars pulumi.StringOutput
 }
 
 // ConfigureHost creates the resources of a host and renders its vars.nix. An enabled host gets a deploy key, an SSH
-// host key, a GitHub machine key and, if it runs Coder, a Coder admin password. A disabled host gets none of them
+// host key, a GitHub machine key and, if it runs Coder, a Coder admin password and backup credentials (its restic
+// repositories in the backup bucket). A disabled host gets none of them
 // (disabling a host deletes them); its vars.nix holds only the static SSH keys, so it is still rendered and checked,
 // but not deployable.
 // ctx: The Pulumi context.
@@ -50,7 +55,7 @@ type Data struct {
 // is added to the deploy user's.
 func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) (*Data, error) {
 	if !h.IsEnabled() {
-		vars, vErr := renderVars(h, staticSSHKeys, staticSSHKeys, "", "")
+		vars, vErr := renderVars(h, staticSSHKeys, staticSSHKeys, "", "", "")
 		if vErr != nil {
 			return nil, vErr
 		}
@@ -96,6 +101,16 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 		}
 		coderAdminPassword = &password.Password
 	}
+	var backupCredentials *backup.Credentials
+	backupRepository := ""
+	if h.UsesCoder() {
+		creds, bErr := backup.Create(ctx, h.Name)
+		if bErr != nil {
+			return nil, bErr
+		}
+		backupCredentials = creds
+		backupRepository = backup.Repository(h.Name)
+	}
 
 	// An error returned from the apply fails the update instead of writing an empty file.
 	vars, _ := pulumi.All(deployKey.PublicKeyOpenssh, hostKey.PublicKeyOpenssh, githubKey.PublicKeyOpenssh).
@@ -109,6 +124,7 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 				staticSSHKeys,
 				strings.TrimSpace(hostPublicKey),
 				strings.TrimSpace(githubPublicKey),
+				backupRepository,
 			)
 		}).(pulumi.StringOutput)
 
@@ -117,6 +133,7 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 		HostKey:            hostKey,
 		GitHubKey:          githubKey,
 		CoderAdminPassword: coderAdminPassword,
+		Backup:             backupCredentials,
 		Vars:               vars,
 	}, nil
 }

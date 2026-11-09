@@ -1,13 +1,34 @@
-# Vars schema: the services on the host (Coder: Phase 3).
+# Vars schema: the services on the host (Docker: Phase 2, Coder and its backups: Phase 3).
 { lib, ... }:
 let
   inherit (lib) types;
   inherit (import ./types.nix { inherit lib; })
     bool
     nullable
+    typedD
     ;
 in
 {
+  options.dev.docker = {
+    enable = bool false ''
+      A rootless Docker daemon for the host's user (a systemd user unit, data in the home on the
+      data disk); nobody is in the docker group. Published ports bind to 127.0.0.1 by default.
+    '';
+    trustedPorts = typedD (types.listOf (types.strMatching "[0-9]{1,5}(-[0-9]{1,5})?")) [ ] ''
+      TCP ports or ranges ("8080", "8000-8999") opened to the trusted networks, for containers
+      published on the host's address (`-p 0.0.0.0:8080:80`).
+    '';
+  };
+
+  options.dev.backup = {
+    repository = nullable types.str ''
+      Base of the host's restic repositories (`s3:<endpoint>/<bucket>/dev/<host>`; each
+      application appends /<application>), rendered by Pulumi for hosts with Coder. With Coder:
+      a nightly dump of its database, backed up with restic (secrets `restic-password`,
+      `restic-s3`). null = no backups.
+    '';
+  };
+
   options.dev.coder = {
     enable = bool false ''
       The Coder server, running as the host's user with the built-in provisioner (workspaces

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
@@ -28,7 +29,19 @@ var (
 	BucketPath string
 	// BucketID is the ID of the main storage bucket.
 	BucketID string
+	// BackupBucketID is the ID of the backup bucket (database backups below <BackupPath>/<host>/<application>/).
+	BackupBucketID string
+	// ScalewayOrganizationID is the Scaleway organization (SCW_ORGANIZATION_ID): IAM resources belong to it.
+	ScalewayOrganizationID string
+	// ScalewayProjectID is the Scaleway project of the buckets (SCW_PROJECT_ID): the scope of the backup
+	// credentials.
+	ScalewayProjectID string
+	// ScalewayRegion is the Scaleway region of the buckets (SCW_DEFAULT_REGION): the S3 endpoint.
+	ScalewayRegion string
 )
+
+// BackupPath is the folder of this project in the backup bucket.
+const BackupPath = "dev"
 
 // LoadConfig loads the configuration for the given Pulumi context: the host configurations and the static public
 // SSH keys (the same for every host: the deploy user's and the host user's).
@@ -39,6 +52,20 @@ func LoadConfig(ctx *pulumi.Context) ([]*host.Config, []string, error) {
 	cfg := config.New(ctx, "")
 
 	BucketID = cfg.Require("bucketId")
+	BackupBucketID = cfg.Require("backupBucketId")
+
+	// The Scaleway provider itself reads SCW_DEFAULT_ORGANIZATION_ID and SCW_DEFAULT_PROJECT_ID, which local.env
+	// and CI do not set: the values the backups need are passed explicitly.
+	var sErr error
+	if ScalewayOrganizationID, sErr = requireEnv("SCW_ORGANIZATION_ID"); sErr != nil {
+		return nil, nil, sErr
+	}
+	if ScalewayProjectID, sErr = requireEnv("SCW_PROJECT_ID"); sErr != nil {
+		return nil, nil, sErr
+	}
+	if ScalewayRegion, sErr = requireEnv("SCW_DEFAULT_REGION"); sErr != nil {
+		return nil, nil, sErr
+	}
 	BucketPath = fmt.Sprintf("%s/%s", GlobalName, Environment)
 
 	hosts, rErr := util.ParseHostsFromFiles(hostsDir)
@@ -54,6 +81,16 @@ func LoadConfig(ctx *pulumi.Context) ([]*host.Config, []string, error) {
 	}
 
 	return hosts, sshKeys, nil
+}
+
+// requireEnv returns the value of an environment variable, or an error if it is unset or empty.
+// name: The variable's name.
+func requireEnv(name string) (string, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return "", fmt.Errorf("environment variable %s is required", name)
+	}
+	return value, nil
 }
 
 // ResourceName returns the name of a host's resources: <global name>-<host>-<environment>. The resource helpers of

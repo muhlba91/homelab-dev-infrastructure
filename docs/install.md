@@ -42,5 +42,35 @@ anyway, and nothing on it needs to be kept.
 
 ## Data disk lost
 
-New disk, formatted once ([proxmox.md](proxmox.md)), `./host install`, then restore Coder's database (Phase 3) and
+New disk, formatted once ([proxmox.md](proxmox.md)), `./host install`, then restore Coder's database (below) and
 recreate the workspaces from pushed branches.
+
+## Restoring Coder's database
+
+The nightly backup (`restic-backups-coder`) dumps the database to `/data/backup/coder/coder.dump` and backs it up with
+restic to `dev/<host>/coder/` in the backup bucket. `restic-coder` on the host is restic with the repository and
+credentials set. On the host (`./host ssh <host>`):
+
+```bash
+sudo restic-coder snapshots                                   # the snapshots
+sudo restic-coder restore latest --target /tmp/restore       # the dump: /tmp/restore/data/backup/coder/coder.dump
+```
+
+A drill into a scratch database (Coder keeps running; the dump goes through stdin: the restored directories are
+root-only):
+
+```bash
+sudo runuser -u postgres -- createdb coder_restore
+sudo cat /tmp/restore/data/backup/coder/coder.dump | sudo runuser -u postgres -- pg_restore --no-owner -d coder_restore
+sudo runuser -u postgres -- psql -d coder_restore -c 'select username from users'
+sudo runuser -u postgres -- dropdb coder_restore && sudo rm -rf /tmp/restore
+```
+
+The real restore: stop Coder, recreate the database from the dump, start Coder:
+
+```bash
+sudo systemctl stop coder coder-bootstrap coder-templates
+sudo runuser -u postgres -- dropdb coder && sudo runuser -u postgres -- createdb -O coder coder
+sudo cat /tmp/restore/data/backup/coder/coder.dump | sudo runuser -u postgres -- pg_restore --no-owner --role=coder -d coder
+sudo systemctl start coder coder-bootstrap coder-templates
+```

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -49,7 +50,13 @@ func render(t *testing.T, dir string, enable bool) {
 	}
 
 	t.Chdir(dir)
-	t.Setenv("PULUMI_CONFIG", `{"`+project+`:bucketId":"mock-bucket"}`)
+	t.Setenv("SCW_ORGANIZATION_ID", "mock-organization")
+	t.Setenv("SCW_PROJECT_ID", "mock-project")
+	t.Setenv("SCW_DEFAULT_REGION", "fr-par")
+	t.Setenv(
+		"PULUMI_CONFIG",
+		`{"`+project+`:bucketId":"mock-bucket","`+project+`:backupBucketId":"mock-backup-bucket"}`,
+	)
 	require.NoError(t, pulumi.RunErr(program.Run, pulumi.WithMocks(project, "test", mocks.Mocks{})))
 
 	hosts, err := util.ParseHostsFromFiles("./assets/hosts")
@@ -80,7 +87,7 @@ func render(t *testing.T, dir string, enable bool) {
 }
 
 // assertKeys checks the key and secret files of an enabled host: the ones every host gets, and the Coder admin
-// password exactly when the host runs Coder.
+// password and the backup credentials exactly when the host runs Coder.
 func assertKeys(t *testing.T, host *hostModel.Config) {
 	t.Helper()
 
@@ -90,11 +97,24 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 	assert.FileExists(t, filepath.Join(secrets, "ssh-host-key"))
 	assert.FileExists(t, filepath.Join(secrets, "github-ssh-key"))
 
-	if host.UsesCoder() {
-		assert.FileExists(t, filepath.Join(secrets, "coder-admin-password"))
-	} else {
-		assert.NoFileExists(t, filepath.Join(secrets, "coder-admin-password"))
+	for _, name := range []string{"coder-admin-password", "restic-password", "restic-s3"} {
+		if host.UsesCoder() {
+			assert.FileExists(t, filepath.Join(secrets, name))
+		} else {
+			assert.NoFileExists(t, filepath.Join(secrets, name))
+		}
 	}
+	vars, err := os.ReadFile(filepath.Join("outputs", "hosts", host.Name, "vars.nix"))
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		host.UsesCoder(),
+		strings.Contains(
+			string(vars),
+			`repository = "s3:https://s3.fr-par.scw.cloud/mock-backup-bucket/dev/`+host.Name+`";`,
+		),
+		host.Name,
+	)
 }
 
 // TestRunAsIs renders the host files as they are (only enabled hosts get keys).

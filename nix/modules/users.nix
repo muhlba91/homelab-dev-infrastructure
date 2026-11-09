@@ -24,7 +24,7 @@ in
     inherit home;
     createHome = true;
     shell = pkgs.zsh;
-    # Not in wheel (admin tasks: ./host ssh as deploy), not in docker (rootless Docker, Phase 2).
+    # Not in wheel (admin tasks: ./host ssh as deploy), not in docker (rootless Docker, docker.nix).
     extraGroups = [ ];
     # Fixed ranges (rootless containers): automatically allocated ones could change on a reinstall.
     subUidRanges = [

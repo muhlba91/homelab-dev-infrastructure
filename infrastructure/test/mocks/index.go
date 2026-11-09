@@ -25,6 +25,9 @@ func (Mocks) NewResource(args pulumi.MockResourceArgs) (string, resource.Propert
 	case "random:index/randomPassword:RandomPassword":
 		outputs["result"] = resource.MakeSecret(resource.NewStringProperty("mock-password-" + args.Name))
 		outputs["bcryptHash"] = resource.MakeSecret(resource.NewStringProperty("$2a$10$mock-hash-" + args.Name))
+	case "scaleway:iam/apiKey:ApiKey":
+		outputs["accessKey"] = resource.NewStringProperty("SCWMOCKACCESSKEY")
+		outputs["secretKey"] = resource.MakeSecret(resource.NewStringProperty("mock-secret-key-" + args.Name))
 	case "time:index/rotating:Rotating":
 		outputs["rfc3339"] = resource.NewStringProperty("2026-01-01T00:00:00Z")
 	}

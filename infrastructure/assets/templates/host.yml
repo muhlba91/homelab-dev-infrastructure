@@ -64,9 +64,19 @@ user:
     name: User Name
     email: user@example.org
 
+# optional Docker settings: a rootless Docker daemon for the user (a systemd user unit; nobody is in the docker
+# group); published ports bind to 127.0.0.1 by default
+docker:
+  enabled: false
+  # optional: TCP ports/ranges opened to the trusted networks, for containers published on the host's address
+  # (`-p 0.0.0.0:8080:80`); default none
+  trustedPorts:
+    - "8000-8999"
+
 # optional Coder settings: Coder runs as the user, workspaces are directories in ~/workspaces
 coder:
-  # an enabled Coder gets a generated admin password (secrets/coder-admin-password)
+  # an enabled Coder gets a generated admin password (secrets/coder-admin-password) and nightly database backups
+  # (restic to the backup bucket, dev/<host>/coder/; secrets/restic-password, secrets/restic-s3)
   enabled: false
   # optional: default http://<mgmt address>:3000
   # accessUrl: http://10.46.0.10:3000

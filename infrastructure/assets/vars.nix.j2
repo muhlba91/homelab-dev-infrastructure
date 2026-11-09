@@ -5,7 +5,8 @@ Data: .Host = *host.Config (the parsed host file), .DeployKeys = []string (publi
 user: the static ones from assets/ssh/*.pub plus the host's generated deploy key), .UserKeys =
 []string (public keys of the host's user: the static ones), .HostKey = string (the host's generated
 public SSH host key; empty for a disabled host), .GitHubKey = string (the public GitHub machine key;
-empty for a disabled host).
+empty for a disabled host), .BackupRepository = string (the base of the host's restic
+repositories; empty for a host without backups).
 
 Conventions (as in the router repo):
 - Nix lists are separated by whitespace, never by commas.
@@ -129,6 +130,25 @@ Conventions (as in the router repo):
       githubKey = "{{ . }}";
       {{- end }}
     };
+
+    {{- with .Host.Docker }}
+    docker = {
+      {{- with .Enabled }}
+      enable = {{ . }};
+      {{- end }}
+      {{- with .TrustedPorts }}
+      trustedPorts = [
+        {{- range . }}
+        "{{ . }}"
+        {{- end }}
+      ];
+      {{- end }}
+    };
+    {{- end }}
+
+    {{- with .BackupRepository }}
+    backup.repository = "{{ . }}";
+    {{- end }}
 
     {{- with .Host.Coder }}
     coder = {

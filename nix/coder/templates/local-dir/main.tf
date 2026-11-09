@@ -1,4 +1,5 @@
-# local-dir: a workspace is a directory in ~/workspaces plus a `coder agent` running as the host's
+# local-dir: a workspace is a directory in ~/workspaces (or ~/workspaces/<group>, an optional
+# parameter grouping workspaces in a subfolder) plus a `coder agent` running as the host's
 # user in a systemd user unit (outside NixOS: deploys never restart it, linger brings it back after
 # a reboot). No containers: one mise cache and one rootless Docker for every workspace.
 #
@@ -28,9 +29,26 @@ data "coder_parameter" "repo" {
   mutable      = false
 }
 
+# Immutable: the directory follows from it, and a changed directory would be a new (empty) one.
+data "coder_parameter" "group" {
+  name         = "group"
+  display_name = "Group"
+  description  = "Optional: a subfolder of ~/workspaces to put the workspace in (e.g. hochschule-burgenland): lowercase letters, digits, '.', '_' and '-'."
+  type         = "string"
+  default      = ""
+  mutable      = false
+  validation {
+    regex = "^([a-z0-9][a-z0-9._-]*)?$"
+    error = "Lowercase letters, digits, '.', '_' and '-', starting with a letter or digit (or empty: no group)."
+  }
+}
+
 locals {
-  name    = lower(data.coder_workspace.me.name)
-  dir     = pathexpand("~/workspaces/${local.name}")
+  name   = lower(data.coder_workspace.me.name)
+  group  = data.coder_parameter.group.value
+  parent = pathexpand(local.group == "" ? "~/workspaces" : "~/workspaces/${local.group}")
+  dir    = "${local.parent}/${local.name}"
+
   unit    = "coder-agent-${local.name}"
   state   = pathexpand("~/.local/state/coder-agents/${local.name}")
   envfile = pathexpand("~/.config/coder-agents/${local.name}.env")
@@ -75,8 +93,10 @@ resource "coder_script" "sync_hourly" {
   script       = local.sync
 }
 
-# The directory: created on the first start, destroyed only when the workspace is deleted.
+# The directory: created on the first start, destroyed only when the workspace is deleted (a group
+# folder goes with its last workspace).
 resource "terraform_data" "dir" {
+  # Only the directory (a changed input would replace the resource: rm -rf of the old directory).
   input = local.dir
 
   provisioner "local-exec" {
@@ -85,7 +105,30 @@ resource "terraform_data" "dir" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "rm -rf '${self.input}'"
+    command = <<-EOT
+      rm -rf '${self.input}'
+      parent=$(dirname '${self.input}')
+      [ "$(basename "$parent")" = workspaces ] || rmdir "$parent" 2>/dev/null || true
+    EOT
+  }
+}
+
+# Shown on the workspace page (Coder has no workspace tags).
+resource "coder_metadata" "dir" {
+  resource_id = terraform_data.dir.id
+  hide        = false
+
+  item {
+    key   = "group"
+    value = local.group == "" ? "-" : local.group
+  }
+  item {
+    key   = "directory"
+    value = local.dir
+  }
+  item {
+    key   = "repository"
+    value = data.coder_parameter.repo.value == "" ? "-" : data.coder_parameter.repo.value
   }
 }
 

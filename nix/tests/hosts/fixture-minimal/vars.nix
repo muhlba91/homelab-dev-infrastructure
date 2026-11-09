@@ -1,5 +1,5 @@
 # Fixture: only the required values plus a deploy key (IPv4 only, no pinned host key, no machine
-# key, no Coder): the defaults of the schema. Evaluation only.
+# key, no Docker, no Coder): the defaults of the schema. Evaluation only.
 {
   dev = {
     meta.deployable = false;

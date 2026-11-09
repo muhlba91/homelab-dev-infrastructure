@@ -39,6 +39,12 @@ user:
     name: Daniel Muehlbachler-Pietrzykowski
     email: daniel@muehlbachler.io
 
+# optional Docker settings
+docker:
+  enabled: true
+  trustedPorts:
+    - "8000-9999"
+
 # optional Coder settings
 coder:
-  enabled: false
+  enabled: true

@@ -8,7 +8,7 @@ remote workspaces ([Coder](https://coder.com)) and long-running agents, using [P
 the layout and tooling of [homelab-router-infrastructure](https://github.com/muhlba91/homelab-router-infrastructure).
 
 For each enabled host, it creates the deploy SSH key, the host's SSH host key, the GitHub machine key (authentication
-and commit signing) and, if the host runs Coder, Coder's admin password, and renders the host's `vars.nix` which the
+and commit signing) and, if the host runs Coder, Coder's admin password and the backup credentials, and renders the host's `vars.nix` which the
 NixOS configuration consumes.
 
 The plan and the decision log: [plan.md](plan.md).
@@ -55,6 +55,8 @@ pulumi up
 | `outputs/keys/<host>/secrets/ssh-host-key` | the host's pinned SSH host key |
 | `outputs/keys/<host>/secrets/github-ssh-key` | the GitHub machine key (owned by the host's user) |
 | `outputs/keys/<host>/secrets/coder-admin-password` | Coder's first (admin) user (hosts with Coder) |
+| `outputs/keys/<host>/secrets/restic-password` | the password of the host's restic repositories (hosts with Coder) |
+| `outputs/keys/<host>/secrets/restic-s3` | the S3 keys of the host's backup application, an environment file (hosts with Coder) |
 
 Stack output `hosts.<host>`:
 
@@ -70,7 +72,8 @@ Stack output `hosts.<host>`:
 
 | Variable | Purpose |
 | --- | --- |
-| `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_ORGANIZATION_ID`, `SCW_DEFAULT_PROJECT_ID`, `SCW_DEFAULT_REGION` | the Scaleway bucket the host data is uploaded to |
+| `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_REGION` | the Scaleway bucket the host data is uploaded to |
+| `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID` | required: the organization and project of the backup applications (the buckets' project; the provider's own `SCW_DEFAULT_*` are not used) |
 | `GOOGLE_APPLICATION_CREDENTIALS` (or `gcloud auth application-default login`) | the secrets provider (Cloud KMS) |
 
 Locally they live in `local.env` (git-ignored).
@@ -82,6 +85,10 @@ Locally they live in `local.env` (git-ignored).
 ### Bucket
 
 `homelab-dev-infrastructure:bucketId`: the Scaleway bucket; the files go below `dev-infrastructure/<stack>/`.
+
+`homelab-dev-infrastructure:backupBucketId`: the backup bucket; the restic repositories go below
+`dev/<host>/<application>/`. Each host with Coder gets a Scaleway IAM application with object storage access in the
+project `SCW_PROJECT_ID`, which holds the bucket (Scaleway IAM cannot limit it to a path).
 
 ### Host YAML
 
@@ -106,7 +113,7 @@ From `nix/` (everything runs through `./nx`, in podman on the Mac):
 ./host hosts                    # list hosts (in deploy order)
 ./host check                    # flake checks: lint, deploy schema, eval tests, every host
 ./host install <host> <ip>      # first install / reinstall (wipes the OS disk, keeps /data)
-./host deploy <host>            # push secrets, then deploy-rs (magic rollback)
+./host deploy <host>            # push secrets, back up, then deploy-rs (magic rollback)
 ./host health <host>            # failed units, data disk usage, pending reboot
 ./host ssh <host> [command]     # SSH as deploy
 ```
@@ -121,11 +128,21 @@ Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fix
   machine key.
 - **Development environment:** nix-ld (prebuilt runtimes, the VS Code Server), envfs, mise (from nixos-unstable: the
   repositories require a newer version than the release ships), direnv, `gh`, `vault` and the usual CLI tools.
+- **Docker** (`docker.enabled`): rootless, a daemon per user as a systemd user unit (data in the home on `/data`);
+  nobody is in the `docker` group. Published ports bind to `127.0.0.1` unless a port names an address, and the
+  firewall blocks the rest anyway; `docker.trustedPorts` (e.g. `8000-8999`) opens ports to the trusted networks
+  for containers published on the host's address (`-p 0.0.0.0:8080:80`). `DOCKER_HOST` is set for shells and user units (testcontainers works). A deploy
+  never restarts the daemon (its containers would stop): `systemctl --user restart docker` picks up a new version.
+  Unused images and build cache older than two weeks are pruned weekly (volumes are kept).
 - **Coder** (`coder.enabled`): runs as the user with the built-in provisioner; workspaces are directories in
-  `~/workspaces` with a `coder agent` user unit (`nix/coder/templates/local-dir`). A workspace clones its repository
+  `~/workspaces` (or `~/workspaces/<group>`, an optional parameter) with a `coder agent` user unit (`nix/coder/templates/local-dir`). A workspace clones its repository
   once, then fetches and fast-forwards a clean branch with an upstream and runs `mise install` at every start and
   hourly (`sync.sh`); local changes and other branches are never touched.
-- `dev-health` (`./host health`): failed units (system and the user's), data disk usage, pending reboot.
+- **Backups** (hosts with Coder): Coder's database is dumped nightly to `/data/backup/coder` and backed up with restic
+  to `dev/<host>/coder/` in the backup bucket (the last 3 snapshots plus one each from the previous two weeks, pruned after every backup). `./host deploy` runs the backup before every
+  deploy that changes the system (`SKIP_BACKUP=1` skips it). Restore: [install.md](docs/install.md#restoring-coders-database).
+- `dev-health` (`./host health`): failed units (system and the user's, a failed backup included), data disk usage,
+  Coder answering, Docker running, pending reboot.
 
 ### Ports
 
@@ -133,6 +150,7 @@ Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fix
 | --- | --- | --- |
 | 22/tcp | trusted networks | SSH (`deploy`, the host's user) |
 | 3000/tcp | trusted networks | Coder (hosts with Coder) |
+| `docker.trustedPorts` | trusted networks | containers published on the host's address (hosts with Docker) |
 
 ---
 
