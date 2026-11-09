@@ -30,7 +30,8 @@ The plan and the decision log: [plan.md](plan.md).
 
 ## Requirements
 
-- [mise](https://mise.jdx.dev) for Go, golangci-lint and Pulumi
+- [mise](https://mise.jdx.dev) for Go, golangci-lint, Pulumi, Terraform and tflint (the Coder templates:
+  `mise run lint:templates`)
 - [podman](https://podman.io) for the NixOS configuration in [nix/](nix/) (or a local [Nix](https://nixos.org/download/))
 
 ---
@@ -148,7 +149,8 @@ cd nix && ./host check                                      # the fixtures
 
 ## Continuous Integration and Automations
 
-- Pull requests: conform, YAMLLint, Go lint and tests, the Nix checks, `pulumi preview` with a `vars.nix` diff, the
+- Pull requests: conform, YAMLLint, Go lint and tests, the Coder templates (`terraform fmt`, `validate` and
+  `plan` failing on warnings, tflint), the Nix checks, `pulumi preview` with a `vars.nix` diff, the
   Nix checks of the rendered and the previewed hosts, a build of the host system.
 - `main`: preview, Nix checks, `pulumi up`, then `./host deploy` and `./host health` for every host with
   `deploy.automated: true`.

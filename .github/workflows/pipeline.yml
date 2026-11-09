@@ -35,7 +35,6 @@ jobs:
 
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
 
-      # Go comes from mise; setup-go only restores the module cache.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           cache-dependency-path: infrastructure/go.sum
@@ -80,7 +79,6 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      # outputs/keys/ holds the real keys and secrets after a preview: only hosts/ may be uploaded.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: hosts-preview
@@ -88,7 +86,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The checks of the rendered host files (named by flake checks.nix): the deploy nodes and one per host.
       - run: |
           echo "checks=$(find infrastructure/outputs/hosts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "host-" + .]')" >> "$GITHUB_OUTPUT"
         id: checks

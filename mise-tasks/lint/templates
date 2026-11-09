@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#MISE description="Validate and lint the Coder templates (terraform fmt, validate and plan, tflint)"
+#USAGE arg "[template]..." help="Template directories (default: every nix/coder/templates/*)"
+# Every template: `terraform fmt`, `terraform validate`, then `terraform plan` (offline: Coder's data sources fall
+# back to defaults, provisioners do not run in a plan), both failing on warnings as well: deprecated
+# provider attributes are reported only by the plan (tflint does not load provider schemas). Then
+# tflint. Each template in a temporary copy: no .terraform or lock file lands in the template
+# directory (its store path is what the host pushes).
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+if [ "$#" -eq 0 ]; then
+  set -- "$root"/nix/coder/templates/*/
+fi
+status=0
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Prints the diagnostics of a `-json` run; fails if there is any.
+diagnostics() {
+  jq -r 'select(.type == "diagnostic") | .diagnostic
+    | "\(.severity): \(.summary)\(if .range then " (\(.range.filename):\(.range.start.line))" else "" end)\(if .detail != "" then "\n  \(.detail)" else "" end)"' |
+    { ! grep .; }
+}
+
+for t in "$@"; do
+  name=$(basename "$t")
+  dir="$tmp/$name"
+  cp -R "${t%/}" "$dir"
+  echo "== $name"
+  ok=1
+  terraform fmt -check -diff -no-color "$dir" >/dev/null || { terraform fmt -diff -no-color "$dir"; ok=0; }
+  terraform -chdir="$dir" init -backend=false -input=false -no-color >/dev/null
+  # validate -json prints one document, plan -json one message per line.
+  terraform -chdir="$dir" validate -json | jq -c '.diagnostics[] | {type: "diagnostic", diagnostic: .}' | diagnostics || ok=0
+  terraform -chdir="$dir" plan -json -input=false -lock=false -refresh=false | diagnostics || ok=0
+  (cd "$dir" && tflint --config="$root/.tflint.hcl" --format=compact) || ok=0
+  if [ "$ok" = 1 ]; then echo "ok"; else status=1; fi
+done
+
+exit "$status"

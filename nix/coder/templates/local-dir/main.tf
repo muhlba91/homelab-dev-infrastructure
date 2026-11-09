@@ -6,16 +6,18 @@
 # as that user. Stop destroys only the start-gated unit; the directory is destroyed on delete.
 
 terraform {
+  # terraform_data: 1.4.
+  required_version = ">= 1.4"
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
+      version = ">= 2.20.0"
     }
   }
 }
 
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "repo" {
   name         = "repo"
