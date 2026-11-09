@@ -23,8 +23,7 @@ The plan and the decision log: [plan.md](plan.md).
   `modules/options/`), `hardware/` (hardware profiles), `coder/templates/` (Coder templates shipped with the system),
   `tests/` (checks, eval tests, fixtures), `host`, `nx` and its image (`Containerfile`)
 - [docs/](docs/): [Proxmox](docs/proxmox.md) (VM, sizing, first install), [install and operations](docs/install.md)
-  (GitHub key, reinstall, growing the data disk), [validation](docs/validation.md), [VS Code](docs/vscode.md),
-  [Coder spike](docs/spike.md)
+  (GitHub key, reinstall, growing the data disk), [validation](docs/validation.md), [VS Code](docs/vscode.md)
 
 ---
 

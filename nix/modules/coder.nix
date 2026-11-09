@@ -1,4 +1,4 @@
-# Coder (Phase 3 of the plan; the Phase 0 spike): the server runs as the host's user with the
+# Coder (Phase 3 of the plan): the server runs as the host's user with the
 # built-in provisioner, so a template's local actions run as that user (workspaces are directories
 # in ~/workspaces with a `coder agent` user unit, nix/coder/templates/local-dir). PostgreSQL holds its
 # database on the data disk, reached over the socket with peer authentication mapped to the role

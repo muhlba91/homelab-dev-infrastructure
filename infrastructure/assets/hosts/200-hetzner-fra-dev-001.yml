@@ -5,8 +5,7 @@ enabled: true
 
 # optional deploy settings
 deploy:
-  # true once the host is installed (./host install): CI cannot deploy before
-  automated: false
+  automated: true
 
 # required hardware settings
 hardware:

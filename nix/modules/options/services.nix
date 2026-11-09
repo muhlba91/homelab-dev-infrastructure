@@ -1,4 +1,4 @@
-# Vars schema: the services on the host (Coder: Phase 3, the Phase 0 spike).
+# Vars schema: the services on the host (Coder: Phase 3).
 { lib, ... }:
 let
   inherit (lib) types;

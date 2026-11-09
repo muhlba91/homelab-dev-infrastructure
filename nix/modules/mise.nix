@@ -43,6 +43,9 @@ in
     eval "$(${pkgs.mise}/bin/mise activate bash)"
   '';
 
+  # mise is updated with the flake (nixos-unstable), not by itself: no "version available" warning.
+  environment.variables.MISE_HIDE_UPDATE_WARNING = "1";
+
   # The global (system) mise configuration: prebuilt Python and Node (mise from nixpkgs compiles
   # Node by default), the workspaces trusted.
   environment.etc."mise/config.toml".text = ''
