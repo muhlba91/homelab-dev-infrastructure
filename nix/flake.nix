@@ -135,14 +135,6 @@
         in
         import ./tests/checks.nix {
           inherit pkgs lib;
-          # The hosts' Terraform (unfree: cache.nixos.org has no build, the check builds it once).
-          inherit
-            (import nixpkgs {
-              inherit system;
-              config.allowUnfreePredicate = p: lib.getName p == "terraform";
-            })
-            terraform
-            ;
           configurations = self.nixosConfigurations;
           # The eval tests always use the fixtures, whatever `hosts` is overridden with.
           fixtures = hostsIn ./tests/hosts;
@@ -157,7 +149,7 @@
               ./nx
               ./secrets-sync.sh
               ./install.sh
-              ./coder/templates
+              ./coder/templates/local-dir/sync.sh
             ];
           };
         }

@@ -458,6 +458,28 @@ lib.runTests {
   };
 
   # Invalid vars fail evaluation.
+  # Every template's required_version (`>= X`) accepts the hosts' Terraform: a raised minimum fails
+  # the template push and with it the deploy.
+  testTemplateTerraform = {
+    expr = lib.mapAttrs (
+      name: _:
+      let
+        # Line by line: a regex over the whole file backtracks forever in Nix's matcher.
+        versions = lib.concatMap (
+          l:
+          let
+            m = builtins.match " *required_version = \">= ([0-9.]+)\"" l;
+          in
+          if m == null then [ ] else m
+        ) (lib.splitString "\n" (builtins.readFile (../coder/templates + "/${name}/main.tf")));
+      in
+      versions != [ ] && lib.all (lib.versionAtLeast dev.pkgs.terraform.version) versions
+    ) (builtins.readDir ../coder/templates);
+    expected = {
+      local-dir = true;
+    };
+  };
+
   # Dotfiles: chezmoi for the host's user only, cloned once, then updated; none without the URL.
   testDotfiles = {
     expr = {
