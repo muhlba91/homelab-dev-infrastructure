@@ -20,8 +20,15 @@ let
   uid = 950; # pinned like every identity owning files (D33)
   sink = "/run/vault-agent/token";
   tokenHelper = pkgs.writeShellScript "vault-token-helper" ''
-    # get: the agent's token; store and erase do nothing (the agent owns the token).
-    if [ "''${1:-}" = get ]; then cat ${sink} 2>/dev/null || true; fi
+    # get: the agent's token; store and erase do nothing (the agent owns the token). An unreadable
+    # sink prints nothing (as before) and the cause on stderr (Q32: a stale user manager).
+    if [ "''${1:-}" = get ]; then
+      if [ -r ${sink} ]; then
+        cat ${sink}
+      else
+        echo "vault-token-helper: cannot read ${sink}: the agent has no token yet, or this process lacks the group vault-token (stale user manager: see dev-health)" >&2
+      fi
+    fi
   '';
   cliConfig = pkgs.writeText "vault-cli.hcl" ''
     token_helper = "${tokenHelper}"

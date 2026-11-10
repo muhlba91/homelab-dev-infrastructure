@@ -1,8 +1,9 @@
 # `dev-health` (./host health, after every deploy): no unit has failed (system and the user's
-# user manager), the data disk is mounted and below 80% (a warning above), Coder answers (hosts
-# with Coder), the Vault Agent has a token (a failed lookup is a warning: Vault may be
-# unreachable), the user's rootless Docker runs (hosts with Docker); a failed backup is a failed
-# unit; a pending reboot (the booted kernel, initrd or modules are not
+# user manager), the user manager has the user's current groups (Q32: it keeps the groups it
+# started with and a deploy never restarts it, D56), the data disk is mounted and below 80% (a
+# warning above), Coder answers (hosts with Coder), the Vault Agent has a token (a failed lookup
+# is a warning: Vault may be unreachable), the user's rootless Docker runs (hosts with Docker); a
+# failed backup is a failed unit; a pending reboot (the booted kernel, initrd or modules are not
 # the current system's) is a warning. Exits 1 on a failure.
 {
   config,
@@ -22,6 +23,8 @@ in
         pkgs.util-linux
         pkgs.systemd
         pkgs.curl
+        pkgs.gawk
+        pkgs.gnugrep
       ]
       ++ lib.optionals cfg.vault.enable [
         pkgs.vault
@@ -33,6 +36,22 @@ in
         if [ -z "$failed" ]; then echo "ok   failed units: 0"; else echo "$failed"; echo "FAIL failed units"; rc=1; fi
         ufailed=$(systemctl --machine=${cfg.user.name}@.host --user --failed --no-legend --plain 2>/dev/null || true)
         if [ -z "$ufailed" ]; then echo "ok   failed user units (${cfg.user.name}): 0"; else echo "$ufailed"; echo "warn failed user units (${cfg.user.name})"; fi
+        # Q32: the user manager (linger) keeps the groups it started with; a group added later
+        # (e.g. vault-token) is missing in every workspace and user service until it restarts.
+        upid=$(systemctl show --property=MainPID --value "user@${toString cfg.user.uid}.service" 2>/dev/null || true)
+        if [ -z "$upid" ] || [ "$upid" = 0 ]; then
+          echo "warn user manager (${cfg.user.name}): not running"
+        else
+          primary=$(id -g ${cfg.user.name})
+          want=$(id -G ${cfg.user.name} | tr ' ' '\n' | grep -vx "$primary" | sort -u || true)
+          have=$(awk '/^Groups:/ { for (i = 2; i <= NF; i++) print $i }' "/proc/$upid/status" | sort -u)
+          missing=$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | grep . | tr '\n' ' ' || true)
+          if [ -n "$missing" ]; then
+            echo "FAIL user manager (${cfg.user.name}): stale groups, missing gid $missing(restarts workspaces, user services, Docker: ./host ssh ${cfg.host.name} 'sudo systemctl restart user@${toString cfg.user.uid}.service')"; rc=1
+          else
+            echo "ok   user manager (${cfg.user.name}): current groups"
+          fi
+        fi
         if mountpoint -q ${cfg.storage.dataDir}; then
           use=$(df --output=pcent ${cfg.storage.dataDir} | tail -1 | tr -dc '0-9')
           if [ "$use" -ge 80 ]; then echo "warn ${cfg.storage.dataDir}: $use% used"; else echo "ok   ${cfg.storage.dataDir}: $use% used"; fi
