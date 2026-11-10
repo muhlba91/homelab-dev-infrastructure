@@ -1,11 +1,13 @@
 # Flake checks (`./host check`), offline; the configurations are only evaluated, never built.
-#   lint          nixfmt, deadnix, statix, shellcheck, install.sh's flake line
+#   lint          nixfmt, deadnix, statix, shellcheck, install.sh's flake line, the Coder templates
+#                 against the hosts' Terraform
 #   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check builds every host)
 #   host-<name>   the host evaluates; `nft --check` of its ruleset in a user-space kernel (LKL)
 #   eval          tests/eval.nix on the fixtures
 {
   pkgs,
   lib,
+  terraform,
   src,
   configurations,
   fixtures,
@@ -73,6 +75,8 @@ in
           pkgs.deadnix
           pkgs.statix
           pkgs.shellcheck
+          pkgs.jq
+          terraform
         ];
       }
       ''
@@ -87,6 +91,22 @@ in
         echo "ok   shellcheck"
         grep -qF 'url = "path:./tests/hosts";' flake.nix || { echo "flake.nix: the hosts url line install.sh rewrites is gone"; exit 1; }
         echo "ok   install.sh's flake line"
+        # Only `terraform init` enforces required_version: offline, against placeholder binaries
+        # of the providers (init installs them without running them).
+        export HOME=$TMPDIR CHECKPOINT_DISABLE=1
+        platform=$(terraform version -json | jq -r .platform)
+        for dir in coder/templates/*/; do
+          name=$(basename "$dir")
+          work=$TMPDIR/templates/$name plugins=$TMPDIR/plugins/$name
+          mkdir -p "$work" && cp "$dir"*.tf "$work"/
+          for p in $(terraform -chdir="$work" providers | sed -n 's|.*provider\[registry\.terraform\.io/\([^]]*\)\].*|\1|p'); do
+            mkdir -p "$plugins/registry.terraform.io/$p/999.0.0/$platform"
+            install -m 0755 /dev/null "$plugins/registry.terraform.io/$p/999.0.0/$platform/terraform-provider-''${p#*/}_v999.0.0"
+          done
+          terraform -chdir="$work" init -backend=false -input=false -no-color -plugin-dir="$plugins" >"$TMPDIR/init.log" 2>&1 ||
+            { cat "$TMPDIR/init.log"; echo "coder/templates/$name: terraform init fails with the hosts' Terraform ${terraform.version}"; exit 1; }
+        done
+        echo "ok   templates (Terraform ${terraform.version})"
         touch $out
       '';
 }
