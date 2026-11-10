@@ -159,6 +159,12 @@ Data: varsData (pkg/lib/host/vars.go).
       {{- with .WildcardAccessURL }}
       wildcardAccessUrl = {{ nix . }};
       {{- end }}
+      {{- with $.OIDC }}
+      oidc = {
+        issuerUrl = {{ nix .URL }};
+        clientId = {{ nix .ClientID }};
+      };
+      {{- end }}
     };
     {{- end }}
   };

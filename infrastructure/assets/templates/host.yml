@@ -86,6 +86,9 @@ coder:
   accessUrl: https://coder.example.org
   # optional: hostname pattern for workspace apps; default none (path-based apps)
   wildcardAccessUrl: "*.coder.example.org"
+  # optional: login with the OIDC provider of the stack config `zitadel` (needs an https accessUrl); default
+  # false; the host gets secrets/coder-oidc
+  oidc: true
 
 # optional Vault Agent settings: logs in with the AppRole role dev-infrastructure-<name> (created by
 # github-infrastructure: the repository's accessPermissions.vault.appRoles) and keeps a short-lived token for the user

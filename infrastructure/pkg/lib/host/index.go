@@ -36,6 +36,8 @@ type Data struct {
 	GitHubKey *tlsProv.PrivateKey
 	// CoderAdminPassword is the password of Coder's first user (secret).
 	CoderAdminPassword *pulumi.StringOutput
+	// CoderOIDC is Coder's OIDC client secret as an environment file (secret); nil without coder.oidc.
+	CoderOIDC *pulumi.StringOutput
 	// Backup holds the credentials of the database backups.
 	Backup *backup.Credentials
 	// Vault holds the Vault Agent's AppRole login.
@@ -49,7 +51,10 @@ type Data struct {
 // ctx: The Pulumi context.
 // h: The host configuration.
 // staticSSHKeys: The static public SSH keys of the deploy user and the user.
-func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) (*Data, error) {
+// provider: The OIDC provider of the stack config (nil when unset).
+func ConfigureHost(
+	ctx *pulumi.Context, h *host.Config, staticSSHKeys []string, provider *config.OIDCConfig,
+) (*Data, error) {
 	if !h.IsEnabled() {
 		vars, err := renderVars(&varsData{Host: h, DeployKeys: staticSSHKeys, UserKeys: staticSSHKeys})
 		if err != nil {
@@ -89,6 +94,12 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 		backupRepository = backup.Repository(h.Name)
 	}
 
+	oidc, oErr := coderOIDC(ctx, h, provider)
+	if oErr != nil {
+		return nil, oErr
+	}
+	data.CoderOIDC = oidc.envFile()
+
 	if h.UsesVault() {
 		if data.Vault, err = vault.Create(ctx, h.Name); err != nil {
 			return nil, err
@@ -114,10 +125,54 @@ func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) 
 			HostKey:          public[1],
 			GitHubKey:        public[2],
 			BackupRepository: backupRepository,
+			OIDC:             oidc.app(),
 		})
 	}).(pulumi.StringOutput)
 
 	return data, nil
+}
+
+// oidcLogin is a host's Coder login with the OIDC provider.
+type oidcLogin struct {
+	// provider is the OIDC provider.
+	provider *config.OIDCConfig
+	// env is the client secret as an environment file (secret).
+	env *pulumi.StringOutput
+}
+
+// app returns the OIDC provider; nil for no login.
+func (o *oidcLogin) app() *config.OIDCConfig {
+	if o == nil {
+		return nil
+	}
+	return o.provider
+}
+
+// envFile returns the client secret as an environment file; nil for no login.
+func (o *oidcLogin) envFile() *pulumi.StringOutput {
+	if o == nil {
+		return nil
+	}
+	return o.env
+}
+
+// coderOIDC returns the Coder login with the OIDC provider of a host with coder.oidc; nil without.
+// ctx: The Pulumi context.
+// h: The host configuration.
+// provider: The OIDC provider of the stack config (nil when unset).
+func coderOIDC(ctx *pulumi.Context, h *host.Config, provider *config.OIDCConfig) (*oidcLogin, error) {
+	if !h.UsesCoderOIDC() {
+		return nil, nil //nolint:nilnil // no login is not an error
+	}
+	if provider == nil {
+		return nil, fmt.Errorf("host %s: coder.oidc needs the stack config zitadel", h.Name)
+	}
+	plain := contextOutput(ctx, "CODER_OIDC_CLIENT_SECRET="+provider.ClientSecret+"\n")
+	env, ok := pulumi.ToSecret(plain).(pulumi.StringOutput)
+	if !ok {
+		return nil, fmt.Errorf("host %s: the OIDC environment is not a string output", h.Name)
+	}
+	return &oidcLogin{provider: provider, env: &env}, nil
 }
 
 // createKey creates an ed25519 key of a host, named <global name>-<host>-<purpose>-<environment>.

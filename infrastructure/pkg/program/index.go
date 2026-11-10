@@ -35,7 +35,7 @@ func Run(ctx *pulumi.Context) error {
 	outputs := pulumi.Map{}
 	written := map[string]bool{}
 	for _, h := range hosts {
-		data, hErr := host.ConfigureHost(ctx, h, sshKeys)
+		data, hErr := host.ConfigureHost(ctx, h, sshKeys, config.OIDC)
 		if hErr != nil {
 			return hErr
 		}
@@ -91,6 +91,9 @@ func writeOutputFiles(ctx *pulumi.Context, name string, hostData *host.Data) ([]
 	}
 	if hostData.CoderAdminPassword != nil {
 		files = append(files, outputFile{secretsDir, "coder-admin-password", *hostData.CoderAdminPassword})
+	}
+	if hostData.CoderOIDC != nil {
+		files = append(files, outputFile{secretsDir, "coder-oidc", *hostData.CoderOIDC})
 	}
 	if hostData.Backup != nil {
 		files = append(files,

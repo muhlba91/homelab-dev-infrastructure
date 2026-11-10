@@ -42,6 +42,32 @@ Disks cannot shrink: start generous. The OS disk is wiped by every install: resi
 New disk, formatted once ([proxmox.md](proxmox.md)), `./host install`, then restore Coder's database (below) and
 recreate the workspaces from pushed branches.
 
+## Coder SSO
+
+`coder.oidc: true` adds an SSO login to Coder with an OIDC provider; the password login stays for the bootstrap admin,
+and the cluster's gateway answers `/api/v2/users/login` with 403 (password login only from the trusted networks, at
+`http://<mgmt address>:3000`).
+
+1. At the provider: a confidential web client (authorization code flow, client secret) with the redirect URI
+   `<coder.accessUrl>/api/v2/users/oidc/callback`, and the post-logout URI `<coder.accessUrl>`. Restrict the client
+   to the allowed users at the provider (Coder allows sign-ups: whoever the provider lets through gets an account).
+2. The stack config (in `infrastructure/`; `--type string` keeps a numeric client ID a string):
+
+   ```bash
+   pulumi config set --stack prod --path zitadel.url https://<issuer>
+   pulumi config set --stack prod --path --type string zitadel.clientId '<client id>'
+   pulumi config set --stack prod --path --secret zitadel.clientSecret   # prompts
+   ```
+
+3. `coder.oidc: true` in the host file; merge (CI runs `pulumi up` and the deploy, which delivers
+   `secrets/coder-oidc`).
+4. Sign in with SSO at `coder.accessUrl`: the first login creates a member account. Its e-mail must differ from the
+   admin's (`user.git.email`): Coder refuses an SSO login for the e-mail of a password account.
+5. Make it an owner: log in as the admin at `http://<mgmt address>:3000` (password: `pulumi stack output hosts
+   --show-secrets`), Users, the new account, roles: Owner.
+
+A rotated client secret: update the stack config, `pulumi up`, `./host push-secrets <host>` (restarts Coder).
+
 ## Restoring Coder's database
 
 The nightly backup (`restic-backups-coder`) dumps the database to `/data/backup/coder/coder.dump` and backs it up with

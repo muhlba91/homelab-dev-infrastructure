@@ -134,6 +134,7 @@ func TestParseHostsValues(t *testing.T) {
 		"coder.accessUrl must not be empty":  {"coder.accessUrl", ""},
 		"user.uid 999: must be 1000-59999":   {"user.uid", 999},
 		"vault.address is required":          {"vault.enabled", true},
+		"coder.oidc needs an https":          {"coder", map[string]any{"enabled": true, "oidc": true}},
 		"field unknown not found":            {"unknown", 1},
 	} {
 		_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", withValue(t, change.path, change.value)))

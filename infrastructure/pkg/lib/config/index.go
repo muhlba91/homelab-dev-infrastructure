@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
@@ -43,7 +45,20 @@ var (
 	ScalewayProjectID string
 	// ScalewayRegion is the Scaleway region of the buckets (SCW_DEFAULT_REGION): the S3 endpoint.
 	ScalewayRegion string
+	// OIDC is the OIDC provider Coder logs in with (stack config `zitadel`); nil when unset.
+	OIDC *OIDCConfig
 )
+
+// OIDCConfig is the stack config `zitadel`: one OIDC client (created by hand at the provider) shared by every host
+// whose Coder has `coder.oidc: true`.
+type OIDCConfig struct {
+	// URL is the issuer URL (https, no trailing slash).
+	URL string `json:"url"`
+	// ClientID is the client ID.
+	ClientID string `json:"clientId"`
+	// ClientSecret is the client secret (a secure value in the stack config).
+	ClientSecret string `json:"clientSecret"`
+}
 
 // LoadConfig loads the configuration for the given Pulumi context: the host configurations and the static public
 // SSH keys (the same for every host: the deploy user's and the host user's).
@@ -70,6 +85,10 @@ func LoadConfig(ctx *pulumi.Context) ([]*host.Config, []string, error) {
 	}
 	BucketPath = fmt.Sprintf("%s/%s", GlobalName, Environment)
 
+	if zErr := loadOIDC(cfg); zErr != nil {
+		return nil, nil, zErr
+	}
+
 	hosts, rErr := util.ParseHostsFromFiles(hostsDir)
 	if rErr != nil {
 		log.Err(rErr).Msg("[config] error parsing host configurations from files")
@@ -83,6 +102,29 @@ func LoadConfig(ctx *pulumi.Context) ([]*host.Config, []string, error) {
 	}
 
 	return hosts, sshKeys, nil
+}
+
+// loadOIDC reads the optional stack config `zitadel` into OIDC. The object is read in plain (it holds the
+// secure clientSecret): the secret is wrapped as a Pulumi secret where it is used.
+// cfg: The project's configuration.
+func loadOIDC(cfg *config.Config) error {
+	var z OIDCConfig
+	if err := cfg.TryObject("zitadel", &z); err != nil {
+		if errors.Is(err, config.ErrMissingVar) {
+			return nil
+		}
+		return fmt.Errorf("stack config zitadel: %w", err)
+	}
+	switch {
+	case !strings.HasPrefix(z.URL, "https://") || strings.HasSuffix(z.URL, "/"):
+		return fmt.Errorf("stack config zitadel.url %q: must be an https URL without a trailing slash", z.URL)
+	case z.ClientID == "":
+		return errors.New("stack config zitadel.clientId is required")
+	case z.ClientSecret == "":
+		return errors.New("stack config zitadel.clientSecret is required")
+	}
+	OIDC = &z
+	return nil
 }
 
 // requireEnv returns the value of an environment variable, or an error if it is unset or empty.

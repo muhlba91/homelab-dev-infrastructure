@@ -140,6 +140,7 @@ lib.runTests {
     expected = {
       dev = [
         "coder-admin-password"
+        "coder-oidc"
         "github-ssh-key"
         "restic-password"
         "restic-s3"
@@ -457,6 +458,38 @@ lib.runTests {
   # Invalid vars fail evaluation.
   # Coder without a proxy: the default URL, no trusted proxy headers. The template's agent URL
   # uses dev.coder.port.
+  # SSO with OIDC: the client ID in the environment, the secret only from the environment file.
+  testCoderOIDC = {
+    expr =
+      let
+        s = dev.config.systemd.services.coder;
+      in
+      {
+        inherit (s.environment)
+          CODER_OIDC_ISSUER_URL
+          CODER_OIDC_CLIENT_ID
+          CODER_OIDC_SIGN_IN_TEXT
+          CODER_OIDC_ALLOW_SIGNUPS
+          ;
+        file = s.serviceConfig.EnvironmentFile;
+        secret = dev.config.dev.secrets ? coder-oidc;
+        minimal = minimal.config.dev.secrets ? coder-oidc;
+        direct = fails dev { dev.coder.accessUrl = lib.mkForce null; };
+        trailingSlash = fails dev { dev.coder.oidc.issuerUrl = lib.mkForce "https://id.example.org/"; };
+      };
+    expected = {
+      CODER_OIDC_ISSUER_URL = "https://id.example.org";
+      CODER_OIDC_CLIENT_ID = "123456789@dev";
+      CODER_OIDC_SIGN_IN_TEXT = "Sign in with SSO";
+      CODER_OIDC_ALLOW_SIGNUPS = "true";
+      file = "/var/lib/secrets/coder-oidc";
+      secret = true;
+      minimal = false;
+      direct = true;
+      trailingSlash = true;
+    };
+  };
+
   testCoderDirect = {
     expr =
       let

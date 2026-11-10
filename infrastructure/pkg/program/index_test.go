@@ -55,8 +55,11 @@ func render(t *testing.T, dir string, enable bool) {
 	t.Setenv("SCW_DEFAULT_REGION", "fr-par")
 	t.Setenv(
 		"PULUMI_CONFIG",
-		`{"`+project+`:bucketId":"mock-bucket","`+project+`:backupBucketId":"mock-backup-bucket"}`,
+		`{"`+project+`:bucketId":"mock-bucket","`+project+`:backupBucketId":"mock-backup-bucket",`+
+			`"`+project+`:zitadel":"{\"url\":\"https://id.example.org\",\"clientId\":\"mock-client\",`+
+			`\"clientSecret\":\"mock-secret\"}"}`,
 	)
+	t.Setenv("PULUMI_CONFIG_SECRET_KEYS", `["`+project+`:zitadel"]`)
 	// Files no host writes any more are removed (./host pushes the whole secrets directory).
 	stale := []string{
 		filepath.Join("outputs", "keys", "removed-host", "deploy-key"),
@@ -119,6 +122,14 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 			assert.NoFileExists(t, filepath.Join(secrets, name))
 		}
 	}
+	oidc := filepath.Join(secrets, "coder-oidc")
+	if host.UsesCoderOIDC() {
+		content, err := os.ReadFile(oidc)
+		require.NoError(t, err)
+		assert.Equal(t, "CODER_OIDC_CLIENT_SECRET=mock-secret\n", string(content))
+	} else {
+		assert.NoFileExists(t, oidc)
+	}
 	for _, name := range []string{"vault-role-id", "vault-secret-id"} {
 		if host.UsesVault() {
 			assert.FileExists(t, filepath.Join(secrets, name))
@@ -137,6 +148,8 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 		),
 		host.Name,
 	)
+	assert.Equal(t, host.UsesCoderOIDC(), strings.Contains(string(vars), `clientId = "mock-client";`), host.Name)
+	assert.NotContains(t, string(vars), "mock-secret", host.Name)
 }
 
 // TestRunAsIs renders the host files as they are (only enabled hosts get keys).

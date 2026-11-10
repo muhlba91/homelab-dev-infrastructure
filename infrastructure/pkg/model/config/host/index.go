@@ -39,6 +39,11 @@ func (c *Config) UsesCoder() bool {
 	return c.Coder != nil && isTrue(c.Coder.Enabled)
 }
 
+// UsesCoderOIDC reports whether the host's Coder logs in with OIDC (coder.oidc).
+func (c *Config) UsesCoderOIDC() bool {
+	return c.UsesCoder() && isTrue(c.Coder.OIDC)
+}
+
 // UsesVault reports whether the host runs the Vault Agent (vault.enabled).
 func (c *Config) UsesVault() bool {
 	return c.Vault != nil && isTrue(c.Vault.Enabled)

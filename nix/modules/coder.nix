@@ -30,6 +30,13 @@ let
   ];
 in
 lib.mkIf c.enable {
+  assertions = [
+    {
+      assertion = c.oidc == null || proxied;
+      message = "dev.coder.oidc needs an https dev.coder.accessUrl";
+    }
+  ];
+
   # Terraform is BSL-licensed (unfree in nixpkgs).
   dev.unfree = [ "terraform" ];
 
@@ -37,7 +44,13 @@ lib.mkIf c.enable {
   # server's version, and never a store path the garbage collection could remove.
   environment.systemPackages = [ pkgs.coder ];
 
-  dev.secrets.coder-admin-password = { };
+  dev.secrets = {
+    coder-admin-password = { };
+  }
+  // lib.optionalAttrs (c.oidc != null) {
+    # CODER_OIDC_CLIENT_SECRET=… (systemd reads it as root).
+    coder-oidc.reload = "systemctl try-restart coder.service";
+  };
 
   services.postgresql = {
     enable = true;
@@ -71,6 +84,7 @@ lib.mkIf c.enable {
     listenAddress = "0.0.0.0:${toString port}";
     inherit accessUrl;
     inherit (c) wildcardAccessUrl;
+    environment.file = lib.mkIf (c.oidc != null) config.dev.secrets.coder-oidc.path;
     database = {
       createLocally = false;
       host = "/run/postgresql";
@@ -97,6 +111,12 @@ lib.mkIf c.enable {
       CODER_SECURE_AUTH_COOKIE = "true";
       # The gateway upgrades only websockets, not DERP's own upgrade.
       CODER_DERP_FORCE_WEBSOCKETS = "true";
+    }
+    // lib.optionalAttrs (c.oidc != null) {
+      CODER_OIDC_ISSUER_URL = c.oidc.issuerUrl;
+      CODER_OIDC_CLIENT_ID = c.oidc.clientId;
+      CODER_OIDC_SIGN_IN_TEXT = "Sign in with SSO";
+      CODER_OIDC_ALLOW_SIGNUPS = "true";
     };
   };
   systemd.services.coder = {

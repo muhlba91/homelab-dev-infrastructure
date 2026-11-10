@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/config"
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/host"
 	hostModel "github.com/muhlba91/homelab-dev-infrastructure/pkg/model/config/host"
 	"github.com/muhlba91/homelab-dev-infrastructure/test/mocks"
@@ -44,7 +45,7 @@ func TestOutput(t *testing.T) {
 	for _, coder := range []bool{false, true} {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			h := testHost(coder)
-			data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey})
+			data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey}, nil)
 			require.NoError(t, hErr)
 
 			output := host.Output(h, data)
@@ -86,7 +87,7 @@ func TestOutputDisabled(t *testing.T) {
 		h := testHost(true)
 		disabled := false
 		h.Enabled = &disabled
-		data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey})
+		data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey}, nil)
 		require.NoError(t, hErr)
 
 		assert.Empty(t, host.Output(h, data))
@@ -103,11 +104,15 @@ func TestSecrets(t *testing.T) {
 		enabled := true
 		address := "https://vault.example.org"
 		h.Vault = &hostModel.VaultConfig{Enabled: &enabled, Address: &address}
-		data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey})
+		accessURL := "https://coder.example.org"
+		h.Coder.AccessURL, h.Coder.OIDC = &accessURL, &enabled
+		provider := &config.OIDCConfig{URL: "https://id.example.org", ClientID: "id", ClientSecret: "secret"}
+		data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey}, provider)
 		require.NoError(t, hErr)
 
 		for name, value := range map[string]pulumi.Output{
 			"coder admin password": *data.CoderAdminPassword,
+			"coder oidc":           *data.CoderOIDC,
 			"restic password":      data.Backup.Password,
 			"restic s3":            data.Backup.S3Environment,
 			"vault role id":        data.Vault.RoleID,
@@ -115,6 +120,20 @@ func TestSecrets(t *testing.T) {
 		} {
 			assert.True(t, pulumi.IsSecret(value), name)
 		}
+		return nil
+	}, pulumi.WithMocks("project", "test", mocks.Mocks{}))
+	require.NoError(t, err)
+}
+
+// TestOIDCNeedsProvider fails a host with coder.oidc when the stack config zitadel is missing.
+func TestOIDCNeedsProvider(t *testing.T) {
+	t.Chdir("../../..")
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		h := testHost(true)
+		enabled := true
+		h.Coder.OIDC = &enabled
+		_, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey}, nil)
+		require.ErrorContains(t, hErr, "coder.oidc needs the stack config zitadel")
 		return nil
 	}, pulumi.WithMocks("project", "test", mocks.Mocks{}))
 	require.NoError(t, err)

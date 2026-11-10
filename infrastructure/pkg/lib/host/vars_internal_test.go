@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/config"
 	hostModel "github.com/muhlba91/homelab-dev-infrastructure/pkg/model/config/host"
 )
 
@@ -57,6 +58,23 @@ func TestRenderVars(t *testing.T) {
 	assert.NotContains(t, vars, "hostKey")
 	assert.NotContains(t, vars, "githubKey")
 	assert.NotContains(t, vars, "gateway = \"\"")
+	assert.NotContains(t, vars, "oidc")
+}
+
+// TestRenderVarsOIDC renders the OIDC provider's URL and client ID, never its secret.
+func TestRenderVarsOIDC(t *testing.T) {
+	t.Chdir("../../..")
+
+	vars, err := renderVars(&varsData{
+		Host:       testVarsHost(),
+		DeployKeys: []string{"ssh-ed25519 AAAA a"},
+		OIDC:       &config.OIDCConfig{URL: "https://id.example.org", ClientID: "123@dev", ClientSecret: "s3cret"},
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, vars, `issuerUrl = "https://id.example.org";`)
+	assert.Contains(t, vars, `clientId = "123@dev";`)
+	assert.NotContains(t, vars, "s3cret")
 }
 
 // TestNixString quotes strings and *string; anything else is an error.

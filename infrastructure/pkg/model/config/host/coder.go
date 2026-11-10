@@ -10,4 +10,7 @@ type CoderConfig struct {
 	// WildcardAccessURL is the hostname pattern for workspace apps (e.g. *.coder.example.org; default: none, apps
 	// are path-based).
 	WildcardAccessURL *string `yaml:"wildcardAccessUrl,omitempty"`
+	// OIDC enables the login with the OIDC provider of the stack config `zitadel` (needs an https
+	// AccessURL). Default false. The host gets secrets/coder-oidc (the client secret as an environment file).
+	OIDC *bool `yaml:"oidc,omitempty"`
 }

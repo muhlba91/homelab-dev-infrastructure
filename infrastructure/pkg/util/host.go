@@ -169,6 +169,9 @@ func checkValues(h *host.Config) error {
 	if uid := h.User.UID; uid < 1000 || uid > 59999 {
 		return fmt.Errorf("user.uid %d: must be 1000-59999", uid)
 	}
+	if h.UsesCoderOIDC() && (h.Coder.AccessURL == nil || !strings.HasPrefix(*h.Coder.AccessURL, "https://")) {
+		return errors.New("coder.oidc needs an https coder.accessUrl")
+	}
 	if h.UsesVault() && h.Vault.Address == nil {
 		return errors.New("vault.address is required when vault.enabled is true")
 	}

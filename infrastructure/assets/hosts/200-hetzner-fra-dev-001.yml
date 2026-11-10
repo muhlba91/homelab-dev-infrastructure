@@ -50,6 +50,7 @@ coder:
   enabled: true
   accessUrl: https://coder.dev.home.muehlbachler.io
   wildcardAccessUrl: "*.coder.dev.home.muehlbachler.io"
+  oidc: true
 
 # optional Vault Agent settings
 vault:

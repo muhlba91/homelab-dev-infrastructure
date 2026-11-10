@@ -37,7 +37,8 @@ pulumi stack init prod --secrets-provider \
 ```
 
 Per enabled host, `pulumi up` creates the deploy SSH key, the SSH host key and the GitHub machine key; with Coder the
-admin password and the restic credentials; with the Vault Agent an AppRole secret ID. It writes them and the host's
+admin password and the restic credentials (and with `coder.oidc` the OIDC client secret); with the Vault Agent an
+AppRole secret ID. It writes them and the host's
 `vars.nix` to `infrastructure/outputs/` and the bucket. Stack output `hosts.<host>`: `keys.{deploy,host,github}.public`
 and `coder.admin` (secret).
 
@@ -65,6 +66,8 @@ fnox exec -- mise run up:vm --stack prod   # on a dev VM: leaves the secret IDs 
   creates their secret IDs (rotated every 90 days).
 - `homelab-dev-infrastructure:bucketId`: the host data, below `dev-infrastructure/<stack>/`.
 - `homelab-dev-infrastructure:backupBucketId`: the restic repositories, below `dev/<host>/<application>/`.
+- `homelab-dev-infrastructure:zitadel` (optional): the OIDC client of Coder's SSO login for hosts with `coder.oidc`:
+  `url` (issuer), `clientId` (a string), `clientSecret` (secret). Setup: [install.md](docs/install.md#coder-sso).
 
 ## Adding a host
 
@@ -106,7 +109,8 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
 - **Coder** (`coder.enabled`): runs as the user; workspaces are directories in `~/workspaces` that sync their
   repository at start and hourly. With an https `coder.accessUrl` it sits behind the home cluster's gateway
   (`https://coder.dev.home.muehlbachler.io`, apps under `coder.wildcardAccessUrl`). Nightly restic backup of
-  its database; restore: [install.md](docs/install.md#restoring-coders-database).
+  its database; restore: [install.md](docs/install.md#restoring-coders-database). With `coder.oidc`: SSO login
+  through an OIDC provider; the password login stays for the bootstrap admin (the gateway blocks it publicly).
 - **Vault Agent** (`vault.enabled`): a short-lived host token for the user, used by `vault`, fnox and Pulumi.
 - **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` and a global config in `/etc/fnox` with the host's GCP key.
 - **`dev-health`:** failed units, the user manager's groups, `/data` usage, Coder, the Vault token, Docker, pending

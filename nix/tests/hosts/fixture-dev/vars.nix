@@ -58,6 +58,10 @@
       enable = true;
       accessUrl = "https://coder.example.org";
       wildcardAccessUrl = "*.coder.example.org";
+      oidc = {
+        issuerUrl = "https://id.example.org";
+        clientId = "123456789@dev";
+      };
     };
     backup.repository = "s3:https://s3.fr-par.scw.cloud/fixture-backups/dev/fixture-dev";
     vault = {

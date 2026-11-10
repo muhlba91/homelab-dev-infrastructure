@@ -10,6 +10,7 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/config"
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/model/config/host"
 )
 
@@ -30,6 +31,9 @@ type varsData struct {
 	GitHubKey string
 	// BackupRepository is the base of the restic repositories; empty without backups.
 	BackupRepository string
+	// OIDC is the OIDC provider of Coder's login (only its URL and client ID are rendered); nil without
+	// coder.oidc.
+	OIDC *config.OIDCConfig
 }
 
 // nixEscaper escapes what is special in a Nix double-quoted string.
