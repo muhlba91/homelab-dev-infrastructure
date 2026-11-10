@@ -122,7 +122,7 @@ resource "coder_metadata" "dir" {
 
 # The agent: an enabled user unit while the workspace is started. Idempotent (a start after a
 # build interrupted by a Coder restart repairs it). The agent talks to the server locally, not
-# through the public access URL.
+# through the public access URL (port: dev.coder.port).
 resource "terraform_data" "agent" {
   count = data.coder_workspace.me.start_count
 

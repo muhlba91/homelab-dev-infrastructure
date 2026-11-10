@@ -1,5 +1,7 @@
-# Time: chrony (client only).
-_: {
+# Time: the host's time zone, chrony (client only).
+{ config, ... }:
+{
+  time.timeZone = config.dev.host.timezone;
   services.chrony = {
     enable = true;
     servers = [

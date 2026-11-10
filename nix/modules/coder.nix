@@ -1,6 +1,6 @@
 # Coder as the host's user with the built-in provisioner, so a template's local actions run as that
 # user (coder/templates/local-dir). PostgreSQL on the data disk, socket and peer auth mapped to the
-# role `coder`. Oneshots create the first user and an admin token, and push the shipped templates.
+# role `coder`. First user and templates: coder-provision.nix.
 {
   config,
   lib,
@@ -13,16 +13,13 @@ let
   u = cfg.user;
   uid = toString u.uid;
   stateDir = "${cfg.storage.dataDir}/coder";
-  tokenFile = "${stateDir}/tokens/admin";
-  port = 3000;
+  inherit (c) port;
   accessUrl =
     if c.accessUrl != null then c.accessUrl else "http://${cfg.mgmt.address}:${toString port}";
-  localUrl = "http://127.0.0.1:${toString port}";
   # Behind a TLS-terminating reverse proxy (the cluster's gateway).
   proxied = lib.hasPrefix "https://" accessUrl;
-  templates = ../coder/templates;
   pgPackage = pkgs.postgresql_17;
-  # What the server, its provisioner (Terraform's local-exec) and the oneshots run with.
+  # What the server and its provisioner (Terraform's local-exec) run with.
   toolPath = [
     pkgs.coder
     pkgs.terraform
@@ -115,97 +112,6 @@ lib.mkIf c.enable {
     path = toolPath;
     preStart = ''
       mkdir -p ${stateDir}/config ${stateDir}/cache ${stateDir}/terraform-plugins
-    '';
-  };
-
-  # The first user and an admin token for the template push (idempotent). The password is a
-  # credential, so the secret stays root-owned.
-  systemd.services.coder-bootstrap = {
-    description = "Create Coder's first user and an admin token";
-    after = [ "coder.service" ];
-    requires = [ "coder.service" ];
-    wantedBy = [ "multi-user.target" ];
-    path = [
-      pkgs.curl
-      pkgs.jq
-      pkgs.coreutils
-    ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      User = u.name;
-      Group = "users";
-      LoadCredential = "admin-password:${config.dev.secrets.coder-admin-password.path}";
-      UMask = "0077";
-    };
-    script = ''
-      set -o pipefail
-      url=${localUrl}
-      for _ in $(seq 60); do curl -fsS "$url/healthz" >/dev/null 2>&1 && break; sleep 2; done
-      if [ -s ${tokenFile} ] && curl -fsS -H "Coder-Session-Token: $(cat ${tokenFile})" "$url/api/v2/users/me" >/dev/null; then
-        echo "coder-bootstrap: token valid"
-        exit 0
-      fi
-      # The password stays out of argv (--rawfile).
-      pw="$CREDENTIALS_DIRECTORY/admin-password"
-      if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/api/v2/users/first")" = 404 ]; then
-        jq -n --arg u ${lib.escapeShellArg u.name} --arg e ${lib.escapeShellArg u.git.email} \
-          --arg n ${lib.escapeShellArg u.git.name} --rawfile p "$pw" \
-          '{username: $u, email: $e, name: $n, password: ($p | rtrimstr("\n")), trial: false}' |
-          curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/first" >/dev/null
-        echo "coder-bootstrap: first user created"
-      fi
-      session=$(jq -n --arg e ${lib.escapeShellArg u.git.email} --rawfile p "$pw" \
-        '{email: $e, password: ($p | rtrimstr("\n"))}' |
-        curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/login" | jq -er .session_token)
-      jq -n '{token_name: "bootstrap", lifetime: 0}' |
-        curl -fsS -X POST -H 'Content-Type: application/json' -H "Coder-Session-Token: $session" --data @- \
-          "$url/api/v2/users/me/keys/tokens" | jq -er .key > ${tokenFile}.new
-      mv ${tokenFile}.new ${tokenFile}
-      echo "coder-bootstrap: token created"
-    '';
-  };
-
-  # The templates shipped with the system (nix/coder/templates/<name>), pushed when they change
-  # (the last pushed store path per template in /data/coder/templates).
-  systemd.services.coder-templates = {
-    description = "Push the Coder templates shipped with the system";
-    after = [ "coder-bootstrap.service" ];
-    requires = [ "coder-bootstrap.service" ];
-    wantedBy = [ "multi-user.target" ];
-    restartTriggers = [ templates ];
-    path = toolPath;
-    environment = {
-      CODER_URL = localUrl;
-      CODER_CONFIG_DIR = "${stateDir}/cli";
-    };
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      User = u.name;
-      Group = "users";
-    };
-    script = ''
-      CODER_SESSION_TOKEN=$(cat ${tokenFile})
-      export CODER_SESSION_TOKEN
-      mkdir -p ${stateDir}/templates
-      for dir in ${templates}/*/; do
-        name=$(basename "$dir")
-        # The store path changes exactly when the template does: push only then (this unit also
-        # restarts with every Coder restart).
-        if [ "$(cat ${stateDir}/templates/"$name" 2>/dev/null)" = "$dir" ]; then
-          echo "coder-templates: $name unchanged"
-          continue
-        fi
-        # A copy: coder writes a lock file next to the template.
-        work=$(mktemp -d)
-        trap 'rm -rf "$work"' EXIT
-        cp -r "$dir". "$work"
-        chmod -R u+w "$work"
-        coder templates push "$name" --directory "$work" --yes --message "pushed by coder-templates (${templates})"
-        rm -rf "$work"
-        echo "$dir" > ${stateDir}/templates/"$name"
-      done
     '';
   };
 }

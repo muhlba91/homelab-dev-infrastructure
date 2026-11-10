@@ -7,6 +7,8 @@ let
   ra = v6 && net.v6.acceptRA;
 in
 {
+  networking.hostName = config.dev.host.hostname;
+  networking.domain = config.dev.host.domain;
   networking.useNetworkd = true;
   networking.useDHCP = false;
   assertions = [

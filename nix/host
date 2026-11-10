@@ -119,29 +119,7 @@ case "$cmd" in
     disk=$(ev --raw ".#nixosConfigurations.\"$host\".config.dev.hardware.disk")
     label=$(ev --raw ".#nixosConfigurations.\"$host\".config.dev.storage.dataLabel")
     echo "host: install of '$host' on root@$ip (wipes $disk; keeps the data disk, label $label)"
-    # nixos-anywhere cannot take --override-input (and re-locks an override that differs
-    # from flake.nix), so a temporary copy of the flake points the `hosts` input itself at
-    # the host data and is installed from. Pre-flight: the disk disko wipes must not carry the
-    # data disk's label (a wrong stable path), and the data disk must exist (formatted once by
-    # hand, docs/proxmox.md), or the installed system would not boot. The secrets tree
-    # becomes --extra-files (owned by root; the activation guard applies owner/mode).
-    src="$OUTPUTS/keys/$host/secrets"
-    ./nx sh -c "
-      set -e
-      rm -rf /tmp/fl /tmp/extra && cp -a /work /tmp/fl && cd /tmp/fl
-      ssh -o StrictHostKeyChecking=accept-new root@$ip '
-        if lsblk -no LABEL $disk | grep -qx $label; then echo \"$disk carries the label $label: refusing to wipe it\" >&2; exit 1; fi
-        test -e /dev/disk/by-label/$label || { echo \"no disk with the label $label (format the data disk first)\" >&2; exit 1; }'
-      grep -q 'url = \"path:./tests/hosts\";' flake.nix
-      sed -i 's|url = \"path:./tests/hosts\";|url = \"path:$NX_HOSTS\";|' flake.nix
-      nix flake lock
-      X=''
-      if [ -d $src ]; then
-        mkdir -p /tmp/extra$SECRETS_DIR && cp -a $src/. /tmp/extra$SECRETS_DIR/
-        chmod 0711 /tmp/extra$SECRETS_DIR && chmod 0600 /tmp/extra$SECRETS_DIR/*
-        X='--extra-files /tmp/extra'
-      fi
-      nixos-anywhere --flake /tmp/fl#$host --build-on remote --phases disko,install,reboot \$X --target-host root@$ip" ;;
+    ./nx sh install.sh "$host" "$ip" "$disk" "$label" "$NX_HOSTS" "$OUTPUTS/keys/$host/secrets" "$SECRETS_DIR" ;;
   *)
     usage ;;
 esac

@@ -1,19 +1,10 @@
 # The host's user: pinned uid and subuid/subgid ranges (files on /data keep their owner across
-# reinstalls), home on the data disk, linger, SSH keys only, no sudo. git authenticates and signs
-# with the GitHub machine key (secret `github-ssh-key`).
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
+# reinstalls), home on the data disk, linger, SSH keys only, no sudo.
+{ config, pkgs, ... }:
 let
   cfg = config.dev;
   u = cfg.user;
   home = "${cfg.storage.dataDir}/home/${u.name}";
-  signing = u.githubKey != null;
-  keyPath = config.dev.secrets.github-ssh-key.path;
-  allowedSigners = pkgs.writeText "allowed-signers" "${u.git.email} ${u.githubKey}\n";
 in
 {
   users.users.${u.name} = {
@@ -44,41 +35,4 @@ in
   };
 
   programs.zsh.enable = true;
-
-  dev.secrets = lib.mkIf signing {
-    github-ssh-key = {
-      owner = u.name;
-      group = "users";
-      mode = "0400";
-    };
-  };
-
-  programs.git = {
-    enable = true;
-    config = {
-      user = {
-        inherit (u.git) name email;
-      }
-      # SSH signing with the machine key's file: no ssh-agent needed.
-      // lib.optionalAttrs signing { signingkey = keyPath; };
-      init.defaultBranch = "main";
-    }
-    // lib.optionalAttrs signing {
-      gpg.format = "ssh";
-      gpg.ssh.allowedSignersFile = "${allowedSigners}";
-      commit.gpgsign = true;
-      tag.gpgsign = true;
-    };
-  };
-
-  programs.ssh.extraConfig = lib.optionalString signing ''
-    Host github.com
-      User git
-      IdentityFile ${keyPath}
-      IdentitiesOnly yes
-  '';
-  programs.ssh.knownHosts = lib.mkIf signing {
-    "github.com".publicKey =
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
-  };
 }

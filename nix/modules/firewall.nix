@@ -11,7 +11,7 @@ let
   ports = [
     "22"
   ]
-  ++ lib.optional cfg.coder.enable "3000"
+  ++ lib.optional cfg.coder.enable (toString cfg.coder.port)
   ++ lib.optionals cfg.docker.enable cfg.docker.trustedPorts;
   rule = family: nets: ''
     ${family} saddr ${dlib.nftSet nets} tcp dport ${dlib.nftSet ports} accept

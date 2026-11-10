@@ -14,7 +14,8 @@
         "gomod",
         "nix",
         "pre-commit",
-        "mise"
+        "mise",
+        "terraform"
     ],
     "nix": {
         "enabled": true
@@ -47,6 +48,13 @@
                 "nix"
             ],
             "automerge": false
+        },
+        {
+            "description": "Coder templates: raise the provider's minimum version (no lock file: pushes use the newest anyway)",
+            "matchManagers": [
+                "terraform"
+            ],
+            "rangeStrategy": "bump"
         }
     ]
 }

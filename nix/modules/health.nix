@@ -55,7 +55,7 @@ in
           echo "FAIL ${cfg.storage.dataDir} is not mounted"; rc=1
         fi
         ${lib.optionalString cfg.coder.enable ''
-          if curl -fsS -m 5 -o /dev/null http://127.0.0.1:3000/healthz; then
+          if curl -fsS -m 5 -o /dev/null http://127.0.0.1:${toString cfg.coder.port}/healthz; then
             echo "ok   coder: healthy"
           else
             echo "FAIL coder: /healthz does not answer"; rc=1

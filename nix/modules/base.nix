@@ -1,5 +1,4 @@
-# Base system: identity, nix settings and garbage collection, the watchdog, the deploy user, SSH,
-# tools. Hardware-independent.
+# Base system: unfree allow-list, the hardware watchdog, journal size, terminfo, server tools.
 {
   config,
   lib,
@@ -11,103 +10,21 @@ let
 in
 {
   system.stateVersion = "26.05";
-  assertions = [
-    {
-      assertion = !cfg.meta.deployable || cfg.mgmt.sshKeys != [ ];
-      message = "dev.mgmt.sshKeys is empty: deploy-rs (user `deploy`) could not log in after this deploy";
-    }
-  ];
 
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) cfg.unfree;
 
-  networking.hostName = cfg.host.hostname;
-  networking.domain = cfg.host.domain;
-  time.timeZone = cfg.host.timezone;
-
-  nix.settings = {
-    experimental-features = [
-      "nix-command"
-      "flakes"
-    ];
-    # deploy-rs copies/builds as `deploy`; it must be trusted to push closures.
-    trusted-users = [
-      "root"
-      "@wheel"
-    ];
-  };
-  # Age limit (nix-collect-garbage) plus a count limit, which runs first: many deploys in
-  # a short time would otherwise keep every generation until it is old enough.
-  nix.gc = {
-    automatic = true;
-    dates = "daily";
-    options = "--delete-older-than ${cfg.system.gc.olderThan}";
-  };
-  systemd.services.nix-gc.preStart = "${config.nix.package}/bin/nix-env --profile /nix/var/nix/profiles/system --delete-generations +${toString cfg.system.gc.keep}";
-  # Hardware watchdog: systemd pets it; a hung system is reset by the hardware.
+  # systemd pets the hardware watchdog; a hung system is reset. "0s" (any zero) disables it.
   systemd.settings.Manager.RuntimeWatchdogSec = lib.mkIf (
     builtins.match "0+[smh]" cfg.system.watchdog == null
   ) cfg.system.watchdog;
-  nix.optimise.automatic = true;
+
   services.journald.extraConfig = "SystemMaxUse=1G";
-
-  users.users.deploy = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = cfg.mgmt.sshKeys;
-  };
-  dev.secrets = lib.mkIf (cfg.mgmt.hostKey != null) {
-    ssh-host-key.reload = "systemctl reload sshd.service";
-  };
-  # A pinned host key comes only from the secret: no generated fallback, and a key that does
-  # not match mgmt.hostKey fails the activation (deploy-rs rolls back).
-  systemd.services.sshd-keygen.enable = cfg.mgmt.hostKey == null;
-  system.activationScripts.devHostKey = lib.mkIf (cfg.mgmt.hostKey != null) {
-    deps = [ "devSecrets" ];
-    text =
-      let
-        key = config.dev.secrets.ssh-host-key.path;
-        pinned = lib.concatStringsSep " " (lib.take 2 (lib.splitString " " cfg.mgmt.hostKey));
-      in
-      ''
-        if [ -s ${key} ] && [ "$(${pkgs.openssh}/bin/ssh-keygen -y -f ${key} | cut -d' ' -f1,2)" != "${pinned}" ]; then
-          echo "dev-secrets: ${key} does not match dev.mgmt.hostKey" >&2
-          false
-        fi
-      '';
-  };
-  security.sudo.wheelNeedsPassword = false;
-  # Users exist only as declared: nobody has a password (SSH keys only), and nothing created
-  # or changed on the host survives the next activation.
-  users.mutableUsers = false;
-
-  services.openssh = {
-    enable = true;
-    openFirewall = false; # modules/firewall.nix decides who may connect
-    # A pinned host key (mgmt.hostKey) is the only key sshd offers. A reload re-reads it.
-    hostKeys = lib.mkIf (cfg.mgmt.hostKey != null) [
-      {
-        inherit (config.dev.secrets.ssh-host-key) path;
-        type = lib.removePrefix "ssh-" (lib.head (lib.splitString " " cfg.mgmt.hostKey));
-      }
-    ];
-    settings = {
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-      PermitRootLogin = "no";
-    };
-  };
-
-  # Man pages stay; the NixOS manual (built with every system) is not needed.
-  documentation.nixos.enable = false;
-  # Flakes only: no channels and no NIX_PATH pointing at them.
-  nix.channel.enable = false;
-
-  environment.enableAllTerminfo = true; # ssh from ghostty/kitty/etc. without "unknown terminal type"
+  documentation.nixos.enable = false; # man pages stay
+  environment.enableAllTerminfo = true; # ssh from ghostty, kitty, ...
 
   environment.systemPackages = with pkgs; [
     dig
     mtr
-    htop
     vim
   ];
 }

@@ -40,6 +40,13 @@ in
       proxy in front (the cluster's gateway): Coder then trusts its X-Forwarded-For from the
       trusted networks, sets secure cookies and relays DERP over websockets.
     '';
+    port = lib.mkOption {
+      type = types.port;
+      default = 3000;
+      readOnly = true;
+      internal = true;
+      description = "Coder's listening port (the template's agent URL must match).";
+    };
     wildcardAccessUrl = nullable types.str ''
       Hostname pattern for workspace apps (e.g. `*.coder.example.org`; null: path-based apps only).
     '';

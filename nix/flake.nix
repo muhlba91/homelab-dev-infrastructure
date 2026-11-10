@@ -21,7 +21,7 @@
 
     # Host data: <host>/vars.nix (sets `dev.*`, schema in modules/options/), rendered by
     # Pulumi and injected by ./host (--override-input). Default: the fixtures. Copied to the
-    # Nix store: never secrets.
+    # Nix store: never secrets. install.sh rewrites the url line below.
     hosts = {
       url = "path:./tests/hosts";
       flake = false;
@@ -192,6 +192,7 @@
               ./host
               ./nx
               ./secrets-sync.sh
+              ./install.sh
               ./coder/templates/local-dir/sync.sh
             ];
           };

@@ -5,15 +5,19 @@
     ./helpers.nix
     ./secrets.nix
     ./base.nix
+    ./nix.nix
+    ./ssh.nix
     ./networking.nix
     ./firewall.nix
     ./time.nix
     ./storage.nix
     ./users.nix
+    ./git.nix
     ./nix-ld.nix
     ./mise.nix
     ./docker.nix
     ./coder.nix
+    ./coder-provision.nix
     ./backup.nix
     ./vault-agent.nix
     ./fnox.nix
