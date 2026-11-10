@@ -116,6 +116,9 @@ Data: varsData (pkg/lib/host/vars.go).
       {{- with .GitHubKey }}
       githubKey = {{ nix . }};
       {{- end }}
+      {{- with .Host.User.Dotfiles }}
+      dotfiles = {{ nix . }};
+      {{- end }}
     };
 
     {{- with .Host.Docker }}

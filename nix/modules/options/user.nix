@@ -25,6 +25,10 @@ in
         name = str "Author name of the commits made on the host.";
         email = str "Author e-mail; the GitHub machine key signs for it (git's allowed signers).";
       };
+      dotfiles = nullable (types.strMatching "https://.+") ''
+        https URL of a chezmoi repository: a user timer applies it to the home daily (the shell,
+        git and editor preferences; the host's identity stays in this configuration). null = none.
+      '';
       githubKey = nullable types.str ''
         Public half of the GitHub machine key (`<type> <base64>`; the private half is the secret
         `github-ssh-key`): git's allowed signers. null = no machine key (git does not sign).

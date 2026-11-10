@@ -9,6 +9,8 @@ type UserConfig struct {
 	UID int `yaml:"uid"`
 	// Git is the identity of the commits made on the host.
 	Git *GitConfig `yaml:"git"`
+	// Dotfiles is the https URL of a chezmoi repository applied to the user's home, daily (default: none).
+	Dotfiles *string `yaml:"dotfiles,omitempty"`
 }
 
 // GitConfig defines the git identity of the host's user.

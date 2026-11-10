@@ -458,6 +458,24 @@ lib.runTests {
   };
 
   # Invalid vars fail evaluation.
+  # Dotfiles: chezmoi for the host's user only, cloned once, then updated; none without the URL.
+  testDotfiles = {
+    expr = {
+      condition = dev.config.systemd.user.services.dotfiles.unitConfig.ConditionUser;
+      init = lib.hasInfix "chezmoi init --apply --force --no-tty https://github.com/example/dotfiles.git" dev.config.systemd.user.services.dotfiles.script;
+      timer = dev.config.systemd.user.timers.dotfiles.wantedBy;
+      minimal = minimal.config.systemd.user.services ? dotfiles;
+      ssh = fails dev { dev.user.dotfiles = lib.mkForce "git@github.com:example/dotfiles.git"; };
+    };
+    expected = {
+      condition = "daniel";
+      init = true;
+      timer = [ "timers.target" ];
+      minimal = false;
+      ssh = true;
+    };
+  };
+
   # SSO with OIDC: the client ID in the environment, the secret only from the environment file.
   testCoderOIDC = {
     expr =

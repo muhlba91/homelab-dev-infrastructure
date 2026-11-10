@@ -47,6 +47,7 @@
         name = "Fixture User";
         email = "fixture@example.org";
       };
+      dotfiles = "https://github.com/example/dotfiles.git";
       githubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhl/9WAbovwuyCeVz+1yll3s5SVzWSnukMPnLs7a1ri fixture-github";
     };
 

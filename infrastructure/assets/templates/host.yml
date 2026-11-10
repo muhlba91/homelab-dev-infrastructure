@@ -67,6 +67,8 @@ user:
   git:
     name: User Name
     email: user@example.org
+  # optional: https URL of a chezmoi repository applied to the home daily (a user timer); default none
+  dotfiles: https://github.com/example/dotfiles.git
 
 # optional Docker settings: a rootless Docker daemon for the user (a systemd user unit; nobody is in the docker
 # group); published ports bind to 127.0.0.1 by default
@@ -96,4 +98,4 @@ coder:
 vault:
   enabled: false
   # required when enabled
-  address: https://vault.example.org:8200
+  address: https://vault.example.org

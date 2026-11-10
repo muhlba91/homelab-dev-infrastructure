@@ -38,6 +38,7 @@ user:
   git:
     name: Daniel Muehlbachler-Pietrzykowski
     email: daniel@muehlbachler.io
+  dotfiles: https://github.com/muhlba91/dotfiles.git
 
 # optional Docker settings
 docker:
@@ -55,4 +56,4 @@ coder:
 # optional Vault Agent settings
 vault:
   enabled: true
-  address: https://vault.platform.muehlbachler.io:8200
+  address: https://vault.platform.muehlbachler.io

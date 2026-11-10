@@ -13,6 +13,7 @@
     ./storage.nix
     ./users.nix
     ./git.nix
+    ./dotfiles.nix
     ./nix-ld.nix
     ./mise.nix
     ./docker.nix

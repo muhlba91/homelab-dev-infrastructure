@@ -15,6 +15,7 @@ func testVarsHost() *hostModel.Config {
 	disabled := false
 	accessURL := "https://coder.example.org"
 	wildcardURL := "*.coder.example.org"
+	dotfiles := "https://github.com/example/dotfiles.git"
 	return &hostModel.Config{
 		Name:     "host-a",
 		Hardware: &hostModel.HardwareConfig{Profile: "qemu", Disk: "/dev/sda"},
@@ -27,9 +28,10 @@ func testVarsHost() *hostModel.Config {
 			Nameservers: []string{"10.0.0.53"},
 		},
 		User: &hostModel.UserConfig{
-			Name: "user",
-			UID:  1000,
-			Git:  &hostModel.GitConfig{Name: `O"Brien ${x} \ y`, Email: "user@example.org"},
+			Name:     "user",
+			UID:      1000,
+			Git:      &hostModel.GitConfig{Name: `O"Brien ${x} \ y`, Email: "user@example.org"},
+			Dotfiles: &dotfiles,
 		},
 		Coder: &hostModel.CoderConfig{Enabled: &disabled, AccessURL: &accessURL, WildcardAccessURL: &wildcardURL},
 	}
@@ -52,6 +54,7 @@ func TestRenderVars(t *testing.T) {
 		`address = "fd00::2/64";`,
 		`"10.0.0.53"`,
 		`name = "O\"Brien \${x} \\ y";`,
+		`dotfiles = "https://github.com/example/dotfiles.git";`,
 	} {
 		assert.Contains(t, vars, want)
 	}

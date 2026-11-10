@@ -169,8 +169,8 @@ func checkValues(h *host.Config) error {
 	if uid := h.User.UID; uid < 1000 || uid > 59999 {
 		return fmt.Errorf("user.uid %d: must be 1000-59999", uid)
 	}
-	if h.UsesCoderOIDC() && (h.Coder.AccessURL == nil || !strings.HasPrefix(*h.Coder.AccessURL, "https://")) {
-		return errors.New("coder.oidc needs an https coder.accessUrl")
+	if err := checkURLs(h); err != nil {
+		return err
 	}
 	if h.UsesVault() && h.Vault.Address == nil {
 		return errors.New("vault.address is required when vault.enabled is true")
@@ -181,6 +181,18 @@ func checkValues(h *host.Config) error {
 	if t := h.Network.TrustedNetworks; t != nil &&
 		((t.V4 != nil && len(t.V4) == 0) || (t.V6 != nil && len(t.V6) == 0)) {
 		return errors.New("network.trustedNetworks: v4 and v6 must not be empty (omit them for the defaults)")
+	}
+	return nil
+}
+
+// checkURLs rejects URLs that must be https: the dotfiles repository, Coder's URL with OIDC.
+// h: The host configuration.
+func checkURLs(h *host.Config) error {
+	if d := h.User.Dotfiles; d != nil && !strings.HasPrefix(*d, "https://") {
+		return fmt.Errorf("user.dotfiles %q: must be an https URL", *d)
+	}
+	if h.UsesCoderOIDC() && (h.Coder.AccessURL == nil || !strings.HasPrefix(*h.Coder.AccessURL, "https://")) {
+		return errors.New("coder.oidc needs an https coder.accessUrl")
 	}
 	return nil
 }
@@ -202,6 +214,7 @@ func checkStrings(h *host.Config) error {
 	}
 	optional := map[string]*string{
 		"network.managementAddress": h.Network.ManagementAddress,
+		"user.dotfiles":             h.User.Dotfiles,
 	}
 	if v6 := h.Network.V6; v6 != nil {
 		required["network.v6.address"] = v6.Address

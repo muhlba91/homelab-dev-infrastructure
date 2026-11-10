@@ -135,6 +135,7 @@ func TestParseHostsValues(t *testing.T) {
 		"user.uid 999: must be 1000-59999":   {"user.uid", 999},
 		"vault.address is required":          {"vault.enabled", true},
 		"coder.oidc needs an https":          {"coder", map[string]any{"enabled": true, "oidc": true}},
+		"user.dotfiles \"git@x\": must be":   {"user.dotfiles", "git@x"},
 		"field unknown not found":            {"unknown", 1},
 	} {
 		_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", withValue(t, change.path, change.value)))

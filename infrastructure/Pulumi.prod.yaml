@@ -1,7 +1,7 @@
 config:
   homelab-dev-infrastructure:bucketId: infrastructure-assets-5274ba70-fde0-47de-8e9a-f1bc64c11157
   homelab-dev-infrastructure:backupBucketId: infrastructure-backups-5274ba70-fde0-47de-8e9a-f1bc64c11157
-  vault:address: https://vault.platform.muehlbachler.io:8200
+  vault:address: https://vault.platform.muehlbachler.io
   homelab-dev-infrastructure:zitadel:
     url: https://muehlbachler-mhvy5g.zitadel.cloud
     clientId: "399024162305409456"

@@ -127,6 +127,8 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
 - **Storage:** the OS disk (wiped by every install) and `/data` (homes, Coder, PostgreSQL; kept, grows with the disk).
 - **User:** pinned uid, home on `/data`, linger, SSH keys only, no sudo; commits signed with the GitHub machine key.
 - **Dev environment:** nix-ld, envfs, mise, direnv, `gh`, `vault`.
+- **Dotfiles** (`user.dotfiles`): a user timer applies the chezmoi repository daily (`--force`); the system zsh stays
+  the fallback.
 - **Docker** (`docker.enabled`): rootless, one daemon per user; ports bind to `127.0.0.1` unless published on the
   host's address and listed in `docker.trustedPorts`.
 - **Coder** (`coder.enabled`): runs as the user; workspaces are directories in `~/workspaces` that sync their
