@@ -41,6 +41,16 @@
                 "terraform"
             ],
             "rangeStrategy": "bump"
+        },
+        {
+            "description": "Coder templates: Terraform core comes from nixpkgs (changes with flake.lock); a raised required_version breaks the template push",
+            "matchManagers": [
+                "terraform"
+            ],
+            "matchDepTypes": [
+                "required_version"
+            ],
+            "enabled": false
         }
     ]
 }
