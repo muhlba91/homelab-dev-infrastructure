@@ -388,6 +388,41 @@ lib.runTests {
     };
   };
 
+  # fnox (Q31): the dev profile and the managed global config, in shells and the user manager.
+  testFnox = {
+    expr =
+      let
+        c = dev.config;
+        global = builtins.fromTOML c.environment.etc."fnox/config.toml".text;
+      in
+      {
+        profile = c.environment.variables.FNOX_PROFILE;
+        configDir = c.environment.variables.FNOX_CONFIG_DIR;
+        userManager = lib.hasInfix "FNOX_PROFILE=dev" c.systemd.user.extraConfig;
+        provider = global.providers.dev-infrastructure;
+        source = {
+          inherit (global.profiles.dev.secrets.GCP_SOURCE_CREDENTIALS) provider value env;
+        };
+        minimal = minimal.config.environment.etc ? "fnox/config.toml";
+      };
+    expected = {
+      profile = "dev";
+      configDir = "/etc/fnox";
+      userManager = true;
+      provider = {
+        type = "vault";
+        path = "dev-infrastructure";
+        credential_command = "vault print token";
+      };
+      source = {
+        provider = "dev-infrastructure";
+        value = "gcp-dev-fixture-dev/credentials";
+        env = false;
+      };
+      minimal = false;
+    };
+  };
+
   # Invalid vars fail evaluation.
   testInvalid = {
     expr = {

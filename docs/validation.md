@@ -48,3 +48,20 @@ Run as the host's user:
 - [ ] `cat /var/lib/secrets/vault-secret-id` is denied
 - [ ] `fnox exec` in a pilot repository works
 - [ ] a rotated secret ID (`pulumi up` + `./host push-secrets <host>`) restarts the agent with no manual step
+
+## Developer machine access (Q31)
+
+After github-infrastructure's `pulumi up` and the Pulumi tokens in `dev-infrastructure/`; run as the host's user:
+
+- [ ] `echo $FNOX_PROFILE $FNOX_CONFIG_DIR` shows `dev /etc/fnox`, in a shell and in a workspace terminal
+- [ ] `vault kv get -field=credentials dev-infrastructure/gcp-dev-<host> >/dev/null` and
+  `vault kv get -field=token dev-infrastructure/pulumi-muhlba91 >/dev/null` work; another host's
+  `dev-infrastructure/gcp-dev-<other>` and `gcp-dev-mac` are denied
+- [ ] `vault read auth/approle/role/dev-infrastructure-<host>/role-id` works;
+  `vault write -f auth/approle/role/dev-infrastructure-<host>/secret-id` is denied
+- [ ] `vault token create -role=dev-infrastructure-repo-tokens -policy=github-homelab-router-infrastructure` works
+  (revoke it afterwards); `-policy=github-homelab-dev-infrastructure` and `-policy=admin` are denied
+- [ ] the GCP key can impersonate a CI service account (`gcloud auth print-access-token --impersonate-service-account=<ci SA>`
+  with the key activated in a throw-away `CLOUDSDK_CONFIG`) and can do nothing else (e.g. list buckets denied)
+- [ ] `fnox exec -- pulumi preview` works for this repository (host token) and for homelab-router-infrastructure (minted token)
+- [ ] `mise run up:vm` applies a change and leaves the secret IDs untouched; `mise run up:vm --refresh` refuses

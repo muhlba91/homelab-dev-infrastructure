@@ -16,6 +16,7 @@
     ./coder.nix
     ./backup.nix
     ./vault-agent.nix
+    ./fnox.nix
     ./health.nix
   ];
 }

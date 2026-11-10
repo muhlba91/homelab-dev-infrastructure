@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#MISE description="pulumi up on a dev VM: everything except the AppRole secret IDs (they stay with CI)"
+#USAGE arg "[args]..." help="Further `pulumi up` arguments (e.g. --stack prod)"
+# The host's Vault token can read every dev-infrastructure-* role ID but never create, rotate or
+# look up a secret ID (a secret ID is a permanent login). So the secret IDs, their rotation
+# resources and everything depending on them (their copies in the bucket) are left out; a due
+# rotation and a new Vault host's first secret ID wait for CI's next run (plan, Q31). Never
+# with --refresh: it looks up the secret IDs. Credentials as for any local run (fnox exec).
+set -euo pipefail
+
+for arg in "$@"; do
+  case "$arg" in
+  -r | --refresh | --refresh=true)
+    echo "up:vm: --refresh looks up the AppRole secret IDs, which the host token cannot" >&2
+    exit 1
+    ;;
+  esac
+done
+
+cd "$(git rev-parse --show-toplevel)/infrastructure"
+exec pulumi up --exclude '**vault-approle-secret-id-*' --exclude-dependents "$@"

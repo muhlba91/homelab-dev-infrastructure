@@ -3,7 +3,7 @@ module github.com/muhlba91/homelab-dev-infrastructure
 go 1.27.3
 
 require (
-	github.com/muhlba91/pulumi-shared-library v0.0.0-20261109182431-7a98b39fe023
+	github.com/muhlba91/pulumi-shared-library v0.0.0-20261110105748-a6350a47a27a
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3
 	github.com/pulumi/pulumi-vault/sdk/v7 v7.14.1
 	github.com/pulumi/pulumi/sdk/v3 v3.274.1

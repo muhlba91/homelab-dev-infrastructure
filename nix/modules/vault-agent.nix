@@ -29,7 +29,9 @@ let
   env = {
     VAULT_ADDR = v.address;
     VAULT_CONFIG_PATH = "${cliConfig}";
-    # Pulumi's (Terraform's) Vault provider: the policy has no auth/token/create.
+    # Pulumi's (Terraform's) Vault provider uses the token as is: the host policy has no
+    # auth/token/create. Minted repository tokens (fnox, Q31) could create child tokens, but the
+    # variable stays so long runs behave the same here and on the Mac (local secrets plan D52).
     TERRAFORM_VAULT_SKIP_CHILD_TOKEN = "true";
   };
 in

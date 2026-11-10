@@ -128,6 +128,9 @@ From `nix/` (everything runs through `./nx`, in podman on the Mac):
 
 Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fixtures in `nix/tests/hosts/`.
 
+On a dev VM, `mise run up:vm` runs `pulumi up` without the AppRole secret IDs (the host's Vault token can read the
+role IDs but never create a secret ID): a due rotation and a new Vault host's first secret ID wait for CI.
+
 ### What runs on a host
 
 - **Storage:** the OS disk (disko, wiped by every install) and the data disk at `/data` (homes, Coder, PostgreSQL;
@@ -153,6 +156,11 @@ Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fix
   short-lived token (read-only on the KV mounts) in `/run/vault-agent/token`, readable by the group `vault-token` (the
   user). `VAULT_ADDR` and a token helper are set for shells and user units: `vault`, fnox (`vault print token`) and
   Pulumi's Vault provider (`TERRAFORM_VAULT_SKIP_CHILD_TOKEN`) find the token; `vault login` cannot replace it.
+- **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` (the repositories' local profile) and a global config in
+  `/etc/fnox` (`FNOX_CONFIG_DIR`) for shells and user units: the Vault provider for the developer machines' mount
+  `dev-infrastructure` and the host's GCP key (`GCP_SOURCE_CREDENTIALS`, `dev` profile only, never in the
+  environment) as the source of the repositories' impersonation file. fnox itself comes from each repository's
+  `mise.toml`.
 - `dev-health` (`./host health`): failed units (system and the user's, a failed backup included), data disk usage,
   Coder answering, the Vault token, Docker running, pending reboot.
 
