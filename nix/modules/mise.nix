@@ -1,4 +1,4 @@
-# The user's dev environment, system-wide: mise (runtimes via nix-ld), direnv, git and CLI tools.
+# The user's dev tools, system-wide: mise (runtimes via nix-ld), direnv, CLI tools.
 {
   config,
   pkgs,
@@ -7,7 +7,7 @@
 }:
 let
   cfg = config.dev;
-  home = "${cfg.storage.dataDir}/home/${cfg.user.name}";
+  inherit (config.users.users.${cfg.user.name}) home;
 in
 {
   # mise from nixos-unstable: the repositories require a newer mise (`min_version`) than the

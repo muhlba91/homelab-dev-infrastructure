@@ -22,7 +22,7 @@
 # any folder of the same layout works. Without host data: the fixtures in tests/hosts.
 set -eu
 cd "$(dirname "$0")"
-usage() { sed -n '2,22p' "$0"; exit 1; }
+usage() { sed -n '2,/^[^#]/p' "$0" | sed '$d'; exit 1; } # the header comment
 die() { echo "host: $*" >&2; exit 1; }
 SECRETS_DIR=/var/lib/secrets # must match modules/secrets.nix
 
@@ -68,7 +68,9 @@ push_secrets() {
   echo "host: pushing $src -> deploy@$MGMT:$SECRETS_DIR"
   # secrets-sync.sh travels with the push (base64: no quoting through the container and SSH).
   sync=$(base64 <secrets-sync.sh | tr -d '\n')
-  ./nx -r sh -c "tar -C $src -cf - . | ssh deploy@$MGMT 'sudo sh -c \"\$(echo $sync | base64 -d)\" sh $SECRETS_DIR ${2:-}'"
+  # shellcheck disable=SC2016 # expanded by the container's shell
+  ./nx -r sh -c 'tar -C "$1" -cf - . | ssh "deploy@$2" "sudo sh -c \"\$(echo $3 | base64 -d)\" sh $4 $5"' \
+    sh "$src" "$MGMT" "$sync" "$SECRETS_DIR" "${2:-}"
 }
 
 cmd=${1:-}; host=${2:-}

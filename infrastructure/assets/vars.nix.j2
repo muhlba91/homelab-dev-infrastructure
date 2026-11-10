@@ -4,7 +4,7 @@
 Data: varsData (pkg/lib/host/vars.go).
 - An optional value is rendered only inside `with`/`if` (a nil pointer is a render error); unset means the Nix
   default applies. `with` on an empty list is false: the parser rejects empty lists where that matters.
-- Nix lists are whitespace-separated. Strings are not escaped: no host value contains `"`, `${` or `\`.
+- Strings go through `nix` (quoted and escaped). Nix lists are whitespace-separated.
 - Inside `range`/`with` the dot is the element; the root is `$`.
 */}}
 {
@@ -19,20 +19,20 @@ Data: varsData (pkg/lib/host/vars.go).
     {{- end }}{{ end }}
 
     host = {
-      name = "{{ .Host.Name }}";
-      hostname = "{{ .Host.Name }}";
-      domain = "{{ .Host.Network.Domain }}";
+      name = {{ nix .Host.Name }};
+      hostname = {{ nix .Host.Name }};
+      domain = {{ nix .Host.Network.Domain }};
     };
 
     mgmt = {
-      address = "{{ with .Host.Network.ManagementAddress }}{{ . }}{{ else }}{{ .Host.Network.V4.Address }}{{ end }}";
+      address = {{ with .Host.Network.ManagementAddress }}{{ nix . }}{{ else }}{{ nix .Host.Network.V4.Address }}{{ end }};
       sshKeys = [
         {{- range .DeployKeys }}
-        "{{ . }}"
+        {{ nix . }}
         {{- end }}
       ];
       {{- with .HostKey }}
-      hostKey = "{{ . }}";
+      hostKey = {{ nix . }};
       {{- end }}
     };
 
@@ -41,14 +41,14 @@ Data: varsData (pkg/lib/host/vars.go).
       {{- with .V4 }}
       v4 = [
         {{- range . }}
-        "{{ . }}"
+        {{ nix . }}
         {{- end }}
       ];
       {{- end }}
       {{- with .V6 }}
       v6 = [
         {{- range . }}
-        "{{ . }}"
+        {{ nix . }}
         {{- end }}
       ];
       {{- end }}
@@ -56,17 +56,17 @@ Data: varsData (pkg/lib/host/vars.go).
     {{- end }}
 
     hardware = {
-      profile = "{{ .Host.Hardware.Profile }}";
-      disk = "{{ .Host.Hardware.Disk }}";
+      profile = {{ nix .Host.Hardware.Profile }};
+      disk = {{ nix .Host.Hardware.Disk }};
     };
 
     {{- with .Host.System }}
     {{- with .Watchdog }}
-    system.watchdog = "{{ . }}";
+    system.watchdog = {{ nix . }};
     {{- end }}
     {{- with .GC }}
     {{- with .OlderThan }}
-    system.gc.olderThan = "{{ . }}";
+    system.gc.olderThan = {{ nix . }};
     {{- end }}
     {{- with .Keep }}
     system.gc.keep = {{ . }};
@@ -75,17 +75,17 @@ Data: varsData (pkg/lib/host/vars.go).
     {{- end }}
 
     network = {
-      mac = "{{ .Host.Network.MAC }}";
-      iface = "{{ .Host.Network.Interface }}";
+      mac = {{ nix .Host.Network.MAC }};
+      iface = {{ nix .Host.Network.Interface }};
       v4 = {
-        address = "{{ .Host.Network.V4.Address }}/{{ .Host.Network.V4.Netmask }}";
-        gateway = "{{ .Host.Network.V4.Gateway }}";
+        address = {{ nix (printf "%s/%d" .Host.Network.V4.Address .Host.Network.V4.Netmask) }};
+        gateway = {{ nix .Host.Network.V4.Gateway }};
       };
       {{- with .Host.Network.V6 }}
       v6 = {
-        address = "{{ .Address }}/{{ .Netmask }}";
+        address = {{ nix (printf "%s/%d" .Address .Netmask) }};
         {{- with .Gateway }}
-        gateway = "{{ . }}";
+        gateway = {{ nix . }};
         {{- end }}
         {{- with .AcceptRA }}
         acceptRA = {{ . }};
@@ -95,26 +95,26 @@ Data: varsData (pkg/lib/host/vars.go).
       {{- with .Host.Network.Nameservers }}
       nameservers = [
         {{- range . }}
-        "{{ . }}"
+        {{ nix . }}
         {{- end }}
       ];
       {{- end }}
     };
 
     user = {
-      name = "{{ .Host.User.Name }}";
+      name = {{ nix .Host.User.Name }};
       uid = {{ .Host.User.UID }};
       sshKeys = [
         {{- range .UserKeys }}
-        "{{ . }}"
+        {{ nix . }}
         {{- end }}
       ];
       git = {
-        name = "{{ .Host.User.Git.Name }}";
-        email = "{{ .Host.User.Git.Email }}";
+        name = {{ nix .Host.User.Git.Name }};
+        email = {{ nix .Host.User.Git.Email }};
       };
       {{- with .GitHubKey }}
-      githubKey = "{{ . }}";
+      githubKey = {{ nix . }};
       {{- end }}
     };
 
@@ -126,7 +126,7 @@ Data: varsData (pkg/lib/host/vars.go).
       {{- with .TrustedPorts }}
       trustedPorts = [
         {{- range . }}
-        "{{ . }}"
+        {{ nix . }}
         {{- end }}
       ];
       {{- end }}
@@ -139,13 +139,13 @@ Data: varsData (pkg/lib/host/vars.go).
       enable = {{ . }};
       {{- end }}
       {{- with .Address }}
-      address = "{{ . }}";
+      address = {{ nix . }};
       {{- end }}
     };
     {{- end }}
 
     {{- with .BackupRepository }}
-    backup.repository = "{{ . }}";
+    backup.repository = {{ nix . }};
     {{- end }}
 
     {{- with .Host.Coder }}
@@ -154,10 +154,10 @@ Data: varsData (pkg/lib/host/vars.go).
       enable = {{ . }};
       {{- end }}
       {{- with .AccessURL }}
-      accessUrl = "{{ . }}";
+      accessUrl = {{ nix . }};
       {{- end }}
       {{- with .WildcardAccessURL }}
-      wildcardAccessUrl = "{{ . }}";
+      wildcardAccessUrl = {{ nix . }};
       {{- end }}
     };
     {{- end }}

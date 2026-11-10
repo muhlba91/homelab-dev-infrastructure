@@ -16,7 +16,7 @@ let
   instance = "dev";
   unit = "vault-agent-${instance}.service";
   uid = 950; # pinned (owns files); also the gid of vault-token
-  sink = "/run/vault-agent/token";
+  sink = v.tokenFile;
   tokenHelper = pkgs.writeShellScript "vault-token-helper" ''
     # get: the agent's token (an unreadable sink: nothing, and the cause on stderr); store and
     # erase do nothing (the agent owns the token).

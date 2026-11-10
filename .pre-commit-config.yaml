@@ -26,7 +26,11 @@ repos:
     hooks:
       - id: gitleaks
   # The Go module lives in infrastructure/ (the upstream hook runs at the repository root);
-  # the installed golangci-lint, like `make lint` and CI (latest), supports the module's Go version.
+  # golangci-lint from mise.toml, as in `make lint` and CI.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
   - repo: local
     hooks:
       - id: golangci-lint

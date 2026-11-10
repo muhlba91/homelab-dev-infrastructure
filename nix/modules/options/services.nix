@@ -1,7 +1,15 @@
 # Vars schema: the services (Docker, Coder and its backup, the Vault Agent).
-{ lib, ... }:
+{ config, lib, ... }:
 let
   inherit (lib) types;
+  # A constant shared by modules, not set by vars.
+  fixed =
+    type: default: description:
+    lib.mkOption {
+      inherit type default description;
+      readOnly = true;
+      internal = true;
+    };
   inherit (import ./types.nix { inherit lib; })
     bool
     nullable
@@ -36,17 +44,16 @@ in
       `coder-admin-password` (the first user).
     '';
     accessUrl = nullable types.str ''
-      URL Coder is reached at (null: http://<mgmt.address>:3000). An https URL means a reverse
+      URL Coder is reached at (null: http://<mgmt.address>:<port>). An https URL means a reverse
       proxy in front (the cluster's gateway): Coder then trusts its X-Forwarded-For from the
       trusted networks, sets secure cookies and relays DERP over websockets.
     '';
-    port = lib.mkOption {
-      type = types.port;
-      default = 3000;
-      readOnly = true;
-      internal = true;
-      description = "Coder's listening port (the template's agent URL must match).";
-    };
+    port =
+      fixed types.port 3000
+        "Coder's port (the template's agent URL hardcodes it; an eval test checks).";
+    stateDir =
+      fixed types.str "${config.dev.storage.dataDir}/coder"
+        "Coder's state (config, cache, tokens).";
     wildcardAccessUrl = nullable types.str ''
       Hostname pattern for workspace apps (e.g. `*.coder.example.org`; null: path-based apps only).
     '';
@@ -58,5 +65,6 @@ in
       `vault-role-id`, `vault-secret-id`) and keeps a short-lived token for the host's user.
     '';
     address = nullable types.str "URL of Vault (required when enabled).";
+    tokenFile = fixed types.str "/run/vault-agent/token" "The agent's token sink.";
   };
 }

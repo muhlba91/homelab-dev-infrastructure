@@ -33,7 +33,7 @@ func render(t *testing.T, dir string, enable bool) {
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "assets")))
 	require.NoError(t, os.CopyFS(filepath.Join(dir, "assets"), os.DirFS(assets)))
 
-	// The host template sets every field: rendered as a host too, so the whole template is checked.
+	// The host template documents every field: rendered as a host too, so the whole template is checked.
 	template, err := os.ReadFile(filepath.Join(dir, "assets", "templates", "host.yml"))
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", "hosts", "host.yml"), template, 0o600))
@@ -57,7 +57,21 @@ func render(t *testing.T, dir string, enable bool) {
 		"PULUMI_CONFIG",
 		`{"`+project+`:bucketId":"mock-bucket","`+project+`:backupBucketId":"mock-backup-bucket"}`,
 	)
+	// Files no host writes any more are removed (./host pushes the whole secrets directory).
+	stale := []string{
+		filepath.Join("outputs", "keys", "removed-host", "deploy-key"),
+		filepath.Join("outputs", "keys", "hetzner-fra-dev-001", "secrets", "stale"),
+	}
+	for _, f := range stale {
+		require.NoError(t, os.MkdirAll(filepath.Dir(f), 0o700))
+		require.NoError(t, os.WriteFile(f, []byte("stale"), 0o600))
+	}
+
 	require.NoError(t, pulumi.RunErr(program.Run, pulumi.WithMocks(project, "test", mocks.Mocks{})))
+
+	for _, f := range stale {
+		assert.NoFileExists(t, f)
+	}
 
 	hosts, err := util.ParseHostsFromFiles("./assets/hosts")
 	require.NoError(t, err)

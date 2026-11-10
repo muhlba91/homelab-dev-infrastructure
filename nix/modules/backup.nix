@@ -36,9 +36,8 @@ lib.mkIf (cfg.coder.enable && repository != null) {
       ${pkgs.util-linux}/bin/runuser -u postgres -- ${pg}/bin/pg_dump --format=custom --dbname=coder > ${dumpDir}/coder.dump.new
       mv ${dumpDir}/coder.dump.new ${dumpDir}/coder.dump
     '';
-    # The last 3 snapshots (nightly and before deploys) and the latest of each of the last 3
-    # calendar weeks: this week's is among the last 3, so one from last week and one from the
-    # week before. Pruned after every backup.
+    # The newest 3 snapshots plus the newest of each of the last 3 calendar weeks; pruned after
+    # every backup.
     pruneOpts = [
       "--keep-last 3"
       "--keep-weekly 3"

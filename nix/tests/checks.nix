@@ -1,12 +1,8 @@
-# Flake checks (`nix flake check`, ./host check), offline and without capabilities, with the
-# tools of the checking system (the configurations are only evaluated, never built):
-#   lint          nixfmt (same as `nix fmt`), deadnix (unused code), statix (statix.toml),
-#                 shellcheck (host, nx, install.sh, secrets-sync.sh, the template's sync.sh)
-#   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check would build
-#                 every system: the profile paths are store paths of the hosts)
-#   host-<name>   the host evaluates; its nftables ruleset passes `nft --check` inside a
-#                 user-space kernel (LKL, as the NixOS build-time check does)
-#   eval          tests/eval.nix on the fixtures (lib.runTests; prints the failing tests)
+# Flake checks (`./host check`), offline; the configurations are only evaluated, never built.
+#   lint          nixfmt, deadnix, statix, shellcheck, install.sh's flake line
+#   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check builds every host)
+#   host-<name>   the host evaluates; `nft --check` of its ruleset in a user-space kernel (LKL)
+#   eval          tests/eval.nix on the fixtures
 {
   pkgs,
   lib,
@@ -89,6 +85,8 @@ in
         echo "ok   statix"
         shellcheck host nx install.sh secrets-sync.sh coder/templates/local-dir/sync.sh
         echo "ok   shellcheck"
+        grep -qF 'url = "path:./tests/hosts";' flake.nix || { echo "flake.nix: the hosts url line install.sh rewrites is gone"; exit 1; }
+        echo "ok   install.sh's flake line"
         touch $out
       '';
 }

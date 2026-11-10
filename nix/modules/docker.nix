@@ -10,6 +10,7 @@ let
   cfg = config.dev;
   u = cfg.user;
   socket = "/run/user/${toString u.uid}/docker.sock";
+  host = "unix://${socket}";
 in
 lib.mkIf cfg.docker.enable {
   virtualisation.docker.rootless = {
@@ -38,7 +39,7 @@ lib.mkIf cfg.docker.enable {
   # The user manager (workspace agents, user services) gets DOCKER_HOST as well; testcontainers'
   # reaper mounts the socket by this path. The other users' managers have no access to it.
   systemd.user.extraConfig = dlib.userEnv {
-    DOCKER_HOST = "unix://${socket}";
+    DOCKER_HOST = host;
     TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = socket;
   };
   environment.variables.TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = socket;
@@ -49,7 +50,7 @@ lib.mkIf cfg.docker.enable {
     unitConfig.ConditionUser = u.name;
     after = [ "docker.service" ];
     requires = [ "docker.service" ];
-    environment.DOCKER_HOST = "unix://${socket}";
+    environment.DOCKER_HOST = host;
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${config.virtualisation.docker.rootless.package}/bin/docker system prune --all --force --filter until=336h";

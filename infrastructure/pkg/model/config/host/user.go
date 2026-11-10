@@ -5,7 +5,7 @@ package host
 type UserConfig struct {
 	// Name is the login name.
 	Name string `yaml:"name"`
-	// UID is the pinned user id (>= 1000): files on /data keep their owner across reinstalls.
+	// UID is the pinned user id (1000-59999): files on /data keep their owner across reinstalls.
 	UID int `yaml:"uid"`
 	// Git is the identity of the commits made on the host.
 	Git *GitConfig `yaml:"git"`

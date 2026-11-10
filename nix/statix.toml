@@ -1,3 +1,2 @@
-# statix (./host check). "repeated_keys" (W20) is off: modules keep settings grouped by topic
-# with a comment each (`networking.a = ...;` next to `networking.b = ...;`) instead of one big block.
+# statix (./host check). repeated_keys is off: modules group settings by topic, not in one block.
 disabled = [ "repeated_keys" ]

@@ -17,7 +17,7 @@ trap 'rm -rf "$tmp"' EXIT
 diagnostics() {
   jq -r 'select(.type == "diagnostic") | .diagnostic
     | "\(.severity): \(.summary)\(if .range then " (\(.range.filename):\(.range.start.line))" else "" end)\(if .detail != "" then "\n  \(.detail)" else "" end)"' |
-    { ! grep .; }
+    { if grep .; then return 1; fi; }
 }
 
 for t in "$@"; do

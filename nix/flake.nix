@@ -21,7 +21,7 @@
 
     # Host data: <host>/vars.nix (sets `dev.*`, schema in modules/options/), rendered by
     # Pulumi and injected by ./host (--override-input). Default: the fixtures. Copied to the
-    # Nix store: never secrets. install.sh rewrites the url line below.
+    # Nix store: never secrets. install.sh matches the url line verbatim.
     hosts = {
       url = "path:./tests/hosts";
       flake = false;
@@ -41,32 +41,18 @@
     let
       inherit (nixpkgs) lib;
 
-      # The hosts of a folder of host data: one directory per host, holding its vars.nix.
-      namesIn = dir: lib.attrNames (lib.filterAttrs (_: t: t == "directory") (builtins.readDir dir));
-      hostNames = namesIn hosts;
+      hostData = import ./lib/hosts.nix { inherit lib; };
+      selected = hostData.of hosts;
 
       # Hand-written hardware/boot profiles: hardware/<profile>.nix, chosen per host by
       # dev.hardware.profile (modules/options/host.nix reads the same directory for its enum).
       hardwareProfile = name: ./hardware + "/${name}.nix";
 
-      # Where Nix runs: the podman container on the Mac (aarch64-linux), CI runners and the
-      # hosts (x86_64-linux).
+      # Systems the checks and the devShell run on (the hosts are x86_64-linux).
       systems = [
         "aarch64-linux"
         "x86_64-linux"
       ];
-
-      # The host's dev.* values, evaluated on their own (cheap: no nixpkgs needed)
-      # so the flake can pick the hardware profile and the deploy target statically.
-      hostCfg =
-        vars:
-        (lib.evalModules {
-          modules = [
-            ./modules/options
-            vars
-          ];
-          specialArgs = { inherit lib; };
-        }).config.dev;
 
       mkHost =
         dir: host:
@@ -82,7 +68,7 @@
             disko.nixosModules.disko
             ./modules
             vars
-            (hardwareProfile (hostCfg vars).hardware.profile)
+            (hardwareProfile (hostData.cfg vars).hardware.profile)
             (
               { config, ... }:
               {
@@ -97,11 +83,10 @@
           ];
         };
 
-      hostsIn = dir: lib.genAttrs (namesIn dir) (mkHost dir);
+      hostsIn = dir: lib.genAttrs (hostData.of dir).names (mkHost dir);
 
-      # deploy-rs as packaged in nixpkgs (in cache.nixos.org: nothing to compile), with the
-      # flake input's lib on top (as its README describes): `deploy` and the activation tool on
-      # the host are then the same package.
+      # deploy-rs from nixpkgs (binary cache) with the input's lib: `deploy` and the activation
+      # tool on the host are the same package.
       deployLib =
         (import nixpkgs {
           system = "x86_64-linux";
@@ -115,51 +100,22 @@
             })
           ];
         }).deploy-rs.lib;
-      hostCfgOf = host: hostCfg (hosts + "/${host}/vars.nix");
-      deployableHosts = lib.filter (h: (hostCfgOf h).meta.deployable) hostNames;
-      # Sort key of the deploy order: meta.deployOrder, hosts without one last (the sort is
-      # stable, so ties stay sorted by name).
-      deployRank =
-        host:
-        let
-          order = (hostCfgOf host).meta.deployOrder;
-        in
-        if order == null then 9223372036854775807 else order;
     in
     {
       # One configuration per directory under `hosts`.
       nixosConfigurations = hostsIn hosts;
 
-      # `./host hosts`, one line each: "<name> deployable=<bool> automated=<bool> mgmt=<address>"
-      # (from the host data alone, no nixpkgs), in deploy order (meta.deployOrder; none last, by
-      # name). automated = deployable and meta.deployAutomated: CI deploys exactly these.
-      hostList = lib.concatMapStrings (
-        host:
-        let
-          h = hostCfgOf host;
-        in
-        "${host} deployable=${lib.boolToString h.meta.deployable} automated=${
-          lib.boolToString (h.meta.deployable && h.meta.deployAutomated)
-        } mgmt=${h.mgmt.address}\n"
-      ) (lib.sortOn deployRank hostNames);
-
-      # `./host` connects to a deployable host with this: "<mgmt address>[ <host key>]" (with
-      # a pinned host key, mgmt.hostKey, it is the host's known_hosts line).
-      hostTarget = lib.genAttrs deployableHosts (
-        host:
-        let
-          inherit (hostCfgOf host) mgmt;
-        in
-        toString ([ mgmt.address ] ++ lib.optional (mgmt.hostKey != null) mgmt.hostKey)
-      );
+      # `./host hosts` and `./host`'s targets (lib/hosts.nix).
+      hostList = selected.list;
+      hostTarget = selected.target;
 
       # `./host dump <host>`: the parts of a host's configuration that matter (tests/dump.nix).
       hostDump = lib.mapAttrs (_: system: import ./tests/dump.nix system.config) self.nixosConfigurations;
 
       # `deploy .#<host>` (use ./host deploy <host>). The first install of a new VM is
       # `nixos-anywhere` (./host install <host>), not deploy-rs.
-      deploy.nodes = lib.genAttrs deployableHosts (host: {
-        hostname = (hostCfgOf host).mgmt.address;
+      deploy.nodes = lib.genAttrs selected.deployable (host: {
+        hostname = (selected.cfgOf host).mgmt.address;
         sshUser = "deploy";
         user = "root";
         # The host builds itself: the Mac's container is aarch64, and from CI it fetches from

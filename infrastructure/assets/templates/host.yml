@@ -1,8 +1,11 @@
 ---
-# required host settings
-# the file is named after the host, optionally prefixed with its deploy order: [<order>-]<name>.yml
-# (categories: 0xx test systems, 1xx OVH, 2xx Hetzner, 9xx physical sites)
+# Every field, with an example value; the program test renders this file as a host.
+# The file is named after the host, optionally prefixed with its deploy order: [<order>-]<name>.yml
+# (0xx test systems, 1xx OVH, 2xx Hetzner, 9xx physical sites).
+
+# required: a hostname label of at most 30 characters
 name: host
+# optional: default false (rendered and checked, but no keys or secrets: not deployable)
 enabled: false
 
 # optional deploy settings
@@ -17,11 +20,12 @@ hardware:
   # the OS disk (wiped by every install): with the data disk attached, its stable path, never /dev/sdX
   disk: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi0
 
-# optional system settings
+# optional system settings (the values shown are the defaults)
 system:
   # 0s = off; needs a watchdog device (Proxmox q35: built in; none, e.g. a cloud VM: 0s)
   watchdog: 60s
   gc:
+    # garbage-collect generations older than this, keeping at least `keep`
     olderThan: 7d
     keep: 3
 
@@ -35,19 +39,19 @@ network:
     address: 10.46.0.10
     netmask: 16
     gateway: 10.46.0.1
-  # optional: a static address; the default route and DNS come from the router advertisements (acceptRA, default true;
-  # never an address: no SLAAC, no DHCPv6) and/or the gateway (optional; needed with acceptRA: false)
+  # optional: a static IPv6 address; the default route and DNS come from router advertisements (acceptRA, default
+  # true; never an address) and/or the gateway (needed with acceptRA: false)
   v6:
     address: "fd46::10"
     netmask: 64
     gateway: "fd46::1"
     acceptRA: true
-  # optional: default the IPv4 gateway (the site router's DNS)
+  # optional: default: the IPv4 gateway (the site router's DNS)
   nameservers:
     - 10.46.0.1
-  # optional: default the IPv4 address
+  # optional: default: the IPv4 address
   # managementAddress: 10.46.0.10
-  # optional: who may reach SSH (and Coder); default 10.0.0.0/8, fc00::/7, 2001:678:dc0::/48
+  # optional: who may reach SSH, Coder and docker.trustedPorts; default 10.0.0.0/8, fc00::/7, 2001:678:dc0::/48
   trustedNetworks:
     v4:
       - 10.0.0.0/8
@@ -58,7 +62,7 @@ network:
 # required user settings: the human user (home on /data, the GitHub machine key, no sudo); SSH keys: assets/ssh/*.pub
 user:
   name: user
-  # pinned: files on /data keep their owner across reinstalls
+  # 1000-59999, pinned: files on /data keep their owner across reinstalls
   uid: 1000
   git:
     name: User Name
@@ -78,8 +82,10 @@ coder:
   # an enabled Coder gets a generated admin password (secrets/coder-admin-password) and nightly database backups
   # (restic to the backup bucket, dev/<host>/coder/; secrets/restic-password, secrets/restic-s3)
   enabled: false
-  # optional: default http://<mgmt address>:3000
-  # accessUrl: http://10.46.0.10:3000
+  # optional: default http://<mgmt address>:3000; an https URL means a TLS-terminating proxy in front
+  accessUrl: https://coder.example.org
+  # optional: hostname pattern for workspace apps; default none (path-based apps)
+  wildcardAccessUrl: "*.coder.example.org"
 
 # optional Vault Agent settings: logs in with the AppRole role dev-infrastructure-<name> (created by
 # github-infrastructure: the repository's accessPermissions.vault.appRoles) and keeps a short-lived token for the user

@@ -29,21 +29,7 @@
     },
     "packageRules": [
         {
-            "description": "A NixOS release (nixpkgs branch nixos-YY.MM) needs a review: never automerge",
-            "matchManagers": [
-                "nix"
-            ],
-            "matchDepNames": [
-                "nixpkgs"
-            ],
-            "matchUpdateTypes": [
-                "major",
-                "minor"
-            ],
-            "automerge": false
-        },
-        {
-            "description": "flake.lock (lock file maintenance) changes the dev VM's system: merging it is the moment the VM changes, so never automerge",
+            "description": "flake.lock and NixOS releases change the dev VMs: merging is the moment they change, so never automerge",
             "matchManagers": [
                 "nix"
             ],

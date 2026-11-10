@@ -20,8 +20,9 @@ machine; `./host` installs and deploys it.
 
 ## Requirements
 
-- [mise](https://mise.jdx.dev) (Go, Pulumi, Terraform, fnox, …)
+- [mise](https://mise.jdx.dev) (Go, Pulumi, Terraform, fnox, …), `jq`, `gh`
 - [podman](https://podman.io) or a local [Nix](https://nixos.org/download/) for `nix/`
+- [pre-commit](https://pre-commit.com): `pre-commit install --hook-type pre-commit --hook-type commit-msg`
 
 ---
 
@@ -49,7 +50,8 @@ and `coder.admin` (secret).
 | `GOOGLE_APPLICATION_CREDENTIALS` | Cloud KMS |
 | `VAULT_TOKEN` | reads the AppRole role IDs, manages the secret IDs |
 
-[fnox](https://fnox.jdx.dev) loads them from Vault (`fnox.toml`). CI logs in to Vault through GitHub OIDC. Locally
+[fnox](https://fnox.jdx.dev) loads them from Vault (`fnox.toml`). CI logs in to Vault through GitHub OIDC (repository
+secrets `VAULT_ADDR`, `VAULT_PATH`, `VAULT_ROLE`). Locally
 (`FNOX_PROFILE=dev`) the Vault token is the machine's own and Google credentials impersonate the CI service account:
 
 ```bash
@@ -103,7 +105,7 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
   host's address and listed in `docker.trustedPorts`.
 - **Coder** (`coder.enabled`): runs as the user; workspaces are directories in `~/workspaces` that sync their
   repository at start and hourly. With an https `coder.accessUrl` it sits behind the home cluster's gateway
-  (currently `https://coder.dev.home.muehlbachler.io`, apps under `coder.wildcardAccessUrl`). Nightly restic backup of
+  (`https://coder.dev.home.muehlbachler.io`, apps under `coder.wildcardAccessUrl`). Nightly restic backup of
   its database; restore: [install.md](docs/install.md#restoring-coders-database).
 - **Vault Agent** (`vault.enabled`): a short-lived host token for the user, used by `vault`, fnox and Pulumi.
 - **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` and a global config in `/etc/fnox` with the host's GCP key.
@@ -131,7 +133,10 @@ RENDER_DIR=/tmp/render make -C infrastructure test && OUTPUTS=/tmp/render/output
 
 ## Continuous Integration
 
-- Pull requests: lint, tests, Coder templates, Nix checks, `pulumi preview` with a `vars.nix` diff, Nix checks and a
-  build of the previewed hosts.
-- `main`: `pulumi up`, then `./host deploy` and `./host health` for hosts with `deploy.automated: true`.
-- Renovate automerges everything except `flake.lock` and NixOS releases (merging those changes the hosts).
+- Pull requests: commit and YAML lint, Go lint and tests, Coder templates, Nix checks (fixtures, rendered hosts, a
+  host build), `pulumi preview` with a `vars.nix` diff and Nix checks of the previewed hosts. The required checks are
+  these job names.
+- `main`: preview and Nix checks, `pulumi up`, then `./host deploy` and `./host health` for hosts with
+  `deploy.automated: true`.
+- Renovate automerges patch and minor updates, except `flake.lock` and NixOS releases (merging those changes the
+  hosts).

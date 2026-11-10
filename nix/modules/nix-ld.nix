@@ -1,15 +1,12 @@
 # Generic-Linux binaries (mise runtimes, the VS Code Server, npm CLIs): nix-ld provides the loader
 # and libraries (extend the list when something fails), envfs `#!/bin/bash` and `#!/usr/bin/env`.
 {
+  config,
   lib,
   pkgs,
   dlib,
   ...
 }:
-let
-  ld = "/run/current-system/sw/share/nix-ld/lib/ld.so";
-  libraryPath = "/run/current-system/sw/share/nix-ld/lib";
-in
 {
   programs.nix-ld = {
     enable = true;
@@ -38,8 +35,7 @@ in
   # The module sets NIX_LD* for login sessions only; the user manager (workspace agents, user
   # services) gets them here.
   systemd.user.extraConfig = dlib.userEnv {
-    NIX_LD = ld;
-    NIX_LD_LIBRARY_PATH = libraryPath;
+    inherit (config.environment.variables) NIX_LD NIX_LD_LIBRARY_PATH;
   };
 
   services.envfs.enable = lib.mkDefault true;

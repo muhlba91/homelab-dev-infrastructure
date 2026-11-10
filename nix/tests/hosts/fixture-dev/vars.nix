@@ -1,10 +1,12 @@
 # Fixture: everything on (IPv6, pinned host key, machine key, Docker with open ports, Coder with
 # backups and a proxied URL, Vault Agent).
-# Evaluation only (meta.deployable = false); the keys are throw-away public keys.
+# Deployable and automated (tests the host list and deploy-rs' schema), never deployed: the keys are
+# throw-away public keys.
 {
   dev = {
-    meta.deployable = false;
+    meta.deployable = true;
     meta.deployOrder = 200;
+    meta.deployAutomated = true;
 
     host = {
       name = "fixture-dev";

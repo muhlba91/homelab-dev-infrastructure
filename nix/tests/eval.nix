@@ -16,12 +16,29 @@ let
   fails = system: module: !(evaluates system module);
 in
 lib.runTests {
-  testHostnames = {
-    expr = lib.mapAttrs (_: s: s.config.networking.hostName) fixtures;
+  # `./host hosts` (CI deploys the automated hosts from it) and `./host`'s targets.
+  testHostData = {
+    expr =
+      let
+        d = (import ../lib/hosts.nix { inherit lib; }).of ./hosts;
+      in
+      {
+        inherit (d) list target deployable;
+      };
     expected = {
-      fixture-dev = "fixture-dev";
-      fixture-minimal = "fixture-minimal";
+      list = ''
+        fixture-dev deployable=true automated=true mgmt=10.46.60.1
+        fixture-minimal deployable=false automated=false mgmt=10.46.60.2
+      '';
+      target.fixture-dev = "10.46.60.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhl/9WAbovwuyCeVz+1yll3s5SVzWSnukMPnLs7a1ri fixture-host";
+      deployable = [ "fixture-dev" ];
     };
+  };
+
+  # `./host dump` evaluates.
+  testDump = {
+    expr = builtins.attrNames (import ./dump.nix minimal.config) != [ ];
+    expected = true;
   };
 
   # The qemu profile boots with either firmware and wipes only dev.hardware.disk.
@@ -265,8 +282,6 @@ lib.runTests {
       nixLd = dev.config.programs.nix-ld.enable;
       userManager = lib.hasInfix "NIX_LD=" dev.config.systemd.user.extraConfig;
       envfs = dev.config.services.envfs.enable;
-      # The repositories' mise.toml set min_version.
-      miseVersion = lib.versionAtLeast dev.pkgs.mise.version "2026.10.0";
       mise =
         lib.hasInfix ''trusted_config_paths = ["/data/home/daniel/workspaces"]''
           dev.config.environment.etc."mise/config.toml".text;
@@ -279,7 +294,6 @@ lib.runTests {
       nixLd = true;
       userManager = true;
       envfs = true;
-      miseVersion = true;
       mise = true;
       unfree = [
         [
@@ -441,6 +455,81 @@ lib.runTests {
   };
 
   # Invalid vars fail evaluation.
+  # Coder without a proxy: the default URL, no trusted proxy headers. The template's agent URL
+  # uses dev.coder.port.
+  testCoderDirect = {
+    expr =
+      let
+        c = (dev.extendModules { modules = [ { dev.coder.accessUrl = lib.mkForce null; } ]; }).config;
+        env = c.systemd.services.coder.environment;
+      in
+      {
+        inherit (c.services.coder) accessUrl;
+        proxied = env ? CODER_PROXY_TRUSTED_HEADERS || env ? CODER_SECURE_AUTH_COOKIE;
+        templatePort = lib.hasInfix "http://127.0.0.1:${toString c.dev.coder.port}" (
+          builtins.readFile ../coder/templates/local-dir/main.tf
+        );
+      };
+    expected = {
+      accessUrl = "http://10.46.60.1:3000";
+      proxied = false;
+      templatePort = true;
+    };
+  };
+
+  # A pinned host key is sshd's only key (no generated fallback); passwords and root are off.
+  testSsh = {
+    expr = {
+      hostKeys = dev.config.services.openssh.hostKeys;
+      keygen = dev.config.systemd.services.sshd-keygen.enable;
+      check = dev.config.system.activationScripts ? devHostKey;
+      minimalKeygen = minimal.config.systemd.services.sshd-keygen.enable;
+      minimalCheck = minimal.config.system.activationScripts ? devHostKey;
+      inherit (dev.config.services.openssh.settings) PasswordAuthentication PermitRootLogin;
+    };
+    expected = {
+      hostKeys = [
+        {
+          path = "/var/lib/secrets/ssh-host-key";
+          type = "ed25519";
+        }
+      ];
+      keygen = false;
+      check = true;
+      minimalKeygen = true;
+      minimalCheck = false;
+      PasswordAuthentication = false;
+      PermitRootLogin = "no";
+    };
+  };
+
+  # The watchdog ("0s" disables it) and the garbage collection's two limits.
+  testSystem = {
+    expr = {
+      watchdog = dev.config.systemd.settings.Manager.RuntimeWatchdogSec;
+      watchdogOff =
+        (minimal.extendModules { modules = [ { dev.system.watchdog = lib.mkForce "0s"; } ]; })
+        .config.systemd.settings.Manager
+          ? RuntimeWatchdogSec;
+      gcKeep = lib.hasSuffix "--delete-generations +3" dev.config.systemd.services.nix-gc.preStart;
+      gcAge = dev.config.nix.gc.options;
+    };
+    expected = {
+      watchdog = "60s";
+      watchdogOff = false;
+      gcKeep = true;
+      gcAge = "--delete-older-than 7d";
+    };
+  };
+
+  # Every secret lives in the directory ./host pushes to (SECRETS_DIR in nix/host).
+  testSecretsDir = {
+    expr = lib.all (s: lib.hasPrefix "/var/lib/secrets/" s.path) (
+      lib.attrValues dev.config.dev.secrets
+    );
+    expected = true;
+  };
+
   testInvalid = {
     expr = {
       lowUid = fails minimal { dev.user.uid = lib.mkForce 999; };

@@ -62,9 +62,9 @@ in
           fi
         ''}
         ${lib.optionalString cfg.vault.enable ''
-          if [ ! -s /run/vault-agent/token ]; then
+          if [ ! -s ${cfg.vault.tokenFile} ]; then
             echo "FAIL vault: the agent has no token"; rc=1
-          elif ttl=$(VAULT_ADDR=${cfg.vault.address} VAULT_TOKEN=$(cat /run/vault-agent/token) vault token lookup -format=json 2>/dev/null | jq -er .data.ttl); then
+          elif ttl=$(VAULT_ADDR=${cfg.vault.address} VAULT_TOKEN=$(cat ${cfg.vault.tokenFile}) vault token lookup -format=json 2>/dev/null | jq -er .data.ttl); then
             echo "ok   vault: token valid (ttl ''${ttl}s)"
           else
             echo "warn vault: the token does not look up (Vault unreachable?)"

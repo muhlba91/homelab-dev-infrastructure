@@ -36,16 +36,21 @@ in
       tooling only, never by the host's configuration.
     '';
 
+    unfree = typedD (types.listOf types.str) [ ] ''
+      Unfree nixpkgs packages allowed, by name (`lib.getName`); modules add what they need (one
+      predicate: two modules cannot each set allowUnfreePredicate).
+    '';
+
     host = {
       name = str "Short host name (also the flake output name).";
-      hostname = str "Host name.";
+      hostname = str "The name the host sets for itself (networking.hostName).";
       domain = str "DNS domain of the host (the site's domain).";
       timezone = strD "Etc/UTC" "Time zone.";
     };
 
     mgmt = {
       address = str "Address (or name) deploy-rs/SSH use.";
-      sshKeys = strList [ ] "Public keys allowed for the `deploy` user.";
+      sshKeys = strList [ ] "Public keys allowed for the `deploy` user (passwordless sudo).";
       hostKey = nullable types.str ''
         The host's public SSH host key (`<type> <base64>`): sshd uses the matching private key
         from the secret `ssh-host-key`, and ./host accepts only this key for the host.
@@ -55,8 +60,8 @@ in
 
     trusted = {
       v4 = typedD (types.listOf cidr4) [ "10.0.0.0/8" ] ''
-        Networks that may reach the host's services (SSH, Coder): our sites and the mesh
-        (NetBird/Tailscale reach the site LAN through the routers).
+        Networks that may reach the host's ports (SSH, Coder, docker.trustedPorts) and whose
+        X-Forwarded-For Coder trusts: our sites and the mesh (NetBird/Tailscale).
       '';
       v6 = typedD (types.listOf cidr6) [
         "fc00::/7"

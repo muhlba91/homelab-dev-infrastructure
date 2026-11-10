@@ -6,10 +6,10 @@ mixed. Mac checkouts stay separate and sync through git.
 ## Coder workspaces
 
 With the [Coder extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): log in to the
-host's Coder URL (`coder.accessUrl`, e.g. `https://coder.dev.home.muehlbachler.io`), then open a workspace from the extension's list. Or without the extension:
+host's Coder URL (`coder.accessUrl`), then open a workspace from the list. Without it:
 
 ```bash
-coder login https://coder.dev.home.muehlbachler.io
+coder login <coder.accessUrl>
 coder config-ssh            # adds coder.<workspace> hosts to ~/.ssh/config
 ```
 

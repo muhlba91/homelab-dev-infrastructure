@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -21,8 +23,9 @@ import (
 // the host name.
 var fileName = regexp.MustCompile(`^(?:([0-9]+)-)?(.+)$`)
 
-// hostName matches a valid host name: a hostname label.
-var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+// hostName matches a valid host name: a hostname label of at most 30 characters (the longest derived name,
+// dev-infrastructure-<host>-backup-<stack>, must fit Scaleway's 64-character IAM names).
+var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$`)
 
 // ParseHostsFromFiles reads the host files (*.yml, *.yaml) of a directory. A file is named after its host,
 // optionally prefixed with its deploy order ([<order>-]<name>.yml); host names are unique.
@@ -83,7 +86,7 @@ func loadHostFile(path string, name string) (*host.Config, error) {
 func applyFileName(r *host.Config, name string) error {
 	parts := fileName.FindStringSubmatch(name)
 	if parts == nil || !hostName.MatchString(parts[2]) {
-		return fmt.Errorf("file name %q: the host name must be a hostname label", name)
+		return fmt.Errorf("file name %q: the host name must be a hostname label of at most 30 characters", name)
 	}
 	if r.Name != parts[2] {
 		return fmt.Errorf("host name %q does not match the file name %q", r.Name, name)
@@ -149,15 +152,25 @@ func checkRequired(h *host.Config) error {
 	return nil
 }
 
-// checkValues rejects values the template would render wrongly: a missing Vault address, and empty lists, which
-// it omits, so the Nix default would apply (`trustedNetworks.v4: []` would open the host to the default networks).
+// checkValues rejects values the template would render wrongly: empty required or set optional strings, out-of-range
+// numbers, a missing Vault address, and empty lists whose omission changes the result (`trustedNetworks.v4: []`
+// would open the host to the default networks).
 // h: The host configuration.
 func checkValues(h *host.Config) error {
-	if h.UsesVault() && (h.Vault.Address == nil || *h.Vault.Address == "") {
-		return errors.New("vault.address is required when vault.enabled is true")
+	if err := checkStrings(h); err != nil {
+		return err
 	}
-	if h.Docker != nil && h.Docker.TrustedPorts != nil && len(h.Docker.TrustedPorts) == 0 {
-		return errors.New("docker.trustedPorts must not be empty (omit it for none)")
+	if n := h.Network.V4.Netmask; n < 1 || n > 32 {
+		return fmt.Errorf("network.v4.netmask %d: must be 1-32", n)
+	}
+	if v6 := h.Network.V6; v6 != nil && (v6.Netmask < 1 || v6.Netmask > 128) {
+		return fmt.Errorf("network.v6.netmask %d: must be 1-128", v6.Netmask)
+	}
+	if uid := h.User.UID; uid < 1000 || uid > 59999 {
+		return fmt.Errorf("user.uid %d: must be 1000-59999", uid)
+	}
+	if h.UsesVault() && h.Vault.Address == nil {
+		return errors.New("vault.address is required when vault.enabled is true")
 	}
 	if h.Network.Nameservers != nil && len(h.Network.Nameservers) == 0 {
 		return errors.New("network.nameservers must not be empty (omit it for the IPv4 gateway)")
@@ -165,6 +178,55 @@ func checkValues(h *host.Config) error {
 	if t := h.Network.TrustedNetworks; t != nil &&
 		((t.V4 != nil && len(t.V4) == 0) || (t.V6 != nil && len(t.V6) == 0)) {
 		return errors.New("network.trustedNetworks: v4 and v6 must not be empty (omit them for the defaults)")
+	}
+	return nil
+}
+
+// checkStrings rejects empty strings: required ones, and optional ones that are set.
+// h: The host configuration.
+func checkStrings(h *host.Config) error {
+	required := map[string]string{
+		"hardware.profile":   h.Hardware.Profile,
+		"hardware.disk":      h.Hardware.Disk,
+		"network.domain":     h.Network.Domain,
+		"network.mac":        h.Network.MAC,
+		"network.interface":  h.Network.Interface,
+		"network.v4.address": h.Network.V4.Address,
+		"network.v4.gateway": h.Network.V4.Gateway,
+		"user.name":          h.User.Name,
+		"user.git.name":      h.User.Git.Name,
+		"user.git.email":     h.User.Git.Email,
+	}
+	optional := map[string]*string{
+		"network.managementAddress": h.Network.ManagementAddress,
+	}
+	if v6 := h.Network.V6; v6 != nil {
+		required["network.v6.address"] = v6.Address
+		optional["network.v6.gateway"] = v6.Gateway
+	}
+	if s := h.System; s != nil {
+		optional["system.watchdog"] = s.Watchdog
+		if s.GC != nil {
+			optional["system.gc.olderThan"] = s.GC.OlderThan
+		}
+	}
+	if c := h.Coder; c != nil {
+		optional["coder.accessUrl"] = c.AccessURL
+		optional["coder.wildcardAccessUrl"] = c.WildcardAccessURL
+	}
+	if v := h.Vault; v != nil {
+		optional["vault.address"] = v.Address
+	}
+	for _, field := range slices.Sorted(maps.Keys(optional)) {
+		if value := optional[field]; value != nil {
+			required[field] = *value
+		}
+	}
+
+	for _, field := range slices.Sorted(maps.Keys(required)) {
+		if required[field] == "" {
+			return fmt.Errorf("%s must not be empty", field)
+		}
 	}
 	return nil
 }

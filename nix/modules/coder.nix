@@ -12,8 +12,7 @@ let
   c = cfg.coder;
   u = cfg.user;
   uid = toString u.uid;
-  stateDir = "${cfg.storage.dataDir}/coder";
-  inherit (c) port;
+  inherit (c) port stateDir;
   accessUrl =
     if c.accessUrl != null then c.accessUrl else "http://${cfg.mgmt.address}:${toString port}";
   # Behind a TLS-terminating reverse proxy (the cluster's gateway).
@@ -63,7 +62,6 @@ lib.mkIf c.enable {
     "d ${cfg.storage.dataDir}/postgresql 0750 postgres postgres -"
     "d ${config.services.postgresql.dataDir} 0700 postgres postgres -"
     "d ${stateDir} 0700 ${u.name} users -"
-    "d ${stateDir}/tokens 0700 ${u.name} users -"
   ];
 
   services.coder = {

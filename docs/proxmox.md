@@ -21,14 +21,14 @@ export LAN_MAC=bc:24:11:00:00:01      # the host file's network.mac
 | `machine` | `q35` | PCIe chipset; the ICH9 watchdog (`iTCO_wdt`) is built in for the host file's `system.watchdog` |
 | `bios` | `seabios` or `ovmf` | the `qemu` profile boots with either (OVMF: EFI disk with `pre-enrolled-keys=0`) |
 | `cpu` | `host` | all host CPU features |
-| `numa` | `0` (default) | only useful when the VM spans several host NUMA nodes (`lscpu \| grep -i numa` on the host: one node on a single-socket server); no CPU/memory hotplug needed |
+| `numa` | `0` (default) | single-socket host; no hotplug |
 | `cores` / `memory` / `balloon` | `8` / `24576`-`32768` / `0` | 2-4 concurrent workspaces plus agents; no ballooning |
 | `net0` | `virtio`, the host file's MAC, `vmbr10`, `queues` = 4 | the host renames its NIC by MAC |
 | `scsihw` | `virtio-scsi-single` | one controller per disk, `iothread` per disk |
 | `scsi0` (OS) | 64 GB, `iothread=1`, `discard=on`, `ssd=1` | wiped by every install (disko); the host file's `hardware.disk` is its stable path |
 | `scsi1` (data) | 200-500 GB, `iothread=1`, `discard=on`, `ssd=1` | `/data`: homes, workspaces, Coder, PostgreSQL; never touched by an install |
 | `agent` | `1` | the QEMU guest agent (clean shutdown, IP display) |
-| `allow-ksm` | `0` | no page merging with other VMs: small savings next to a few dissimilar VMs, and memory deduplication opens timing side channels to a VM holding keys and tokens |
+| `allow-ksm` | `0` | no page merging with other VMs (timing side channels next to keys and tokens) |
 
 ```bash
 qm create "$DEV_VMID" --name <host> --machine q35 --cpu host --cores 8 --memory 32768 --balloon 0 \

@@ -2,6 +2,7 @@ package host_test
 
 import (
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -49,20 +50,29 @@ func TestOutput(t *testing.T) {
 			output := host.Output(h, data)
 			keys, ok := output["keys"].(pulumi.Map)
 			require.True(t, ok)
+			var wg sync.WaitGroup
 			for _, name := range []string{"deploy", "host", "github"} {
 				key, kOk := keys[name].(pulumi.Map)
 				require.True(t, kOk, name)
 				public, pOk := key["public"].(pulumi.StringOutput)
 				require.True(t, pOk, name)
+				wg.Add(1)
 				public.ApplyT(func(v string) error {
+					defer wg.Done()
 					assert.Equal(t, mocks.PublicKey, v, name)
 					assert.False(t, strings.HasSuffix(v, "\n"), name)
 					return nil
 				})
 			}
+			wg.Wait()
 
-			_, hasCoder := output["coder"]
+			coderOutput, hasCoder := output["coder"].(pulumi.Map)
 			assert.Equal(t, coder, hasCoder)
+			if hasCoder {
+				admin, aOk := coderOutput["admin"].(pulumi.Output)
+				require.True(t, aOk)
+				assert.True(t, pulumi.IsSecret(admin))
+			}
 			return nil
 		}, pulumi.WithMocks("project", "test", mocks.Mocks{}))
 		require.NoError(t, err)
@@ -80,6 +90,31 @@ func TestOutputDisabled(t *testing.T) {
 		require.NoError(t, hErr)
 
 		assert.Empty(t, host.Output(h, data))
+		return nil
+	}, pulumi.WithMocks("project", "test", mocks.Mocks{}))
+	require.NoError(t, err)
+}
+
+// TestSecrets checks that the generated credentials are Pulumi secrets (never plain in the state or logs).
+func TestSecrets(t *testing.T) {
+	t.Chdir("../../..")
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		h := testHost(true)
+		enabled := true
+		address := "https://vault.example.org"
+		h.Vault = &hostModel.VaultConfig{Enabled: &enabled, Address: &address}
+		data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey})
+		require.NoError(t, hErr)
+
+		for name, value := range map[string]pulumi.Output{
+			"coder admin password": *data.CoderAdminPassword,
+			"restic password":      data.Backup.Password,
+			"restic s3":            data.Backup.S3Environment,
+			"vault role id":        data.Vault.RoleID,
+			"vault secret id":      data.Vault.SecretID,
+		} {
+			assert.True(t, pulumi.IsSecret(value), name)
+		}
 		return nil
 	}, pulumi.WithMocks("project", "test", mocks.Mocks{}))
 	require.NoError(t, err)

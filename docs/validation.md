@@ -52,10 +52,10 @@ Run as the host's user:
 ## Public Coder (cluster gateway)
 
 - [ ] in the home cluster (apps repo, `external-services`): `kubectl -n external-services get listenerset coder-listeners`
-  accepted, certificate `coder-tls-cert` ready with both names (`coder.dev.home.muehlbachler.io`,
-  `*.coder.dev.home.muehlbachler.io`), both DNS records published
-- [ ] `https://coder.dev.home.muehlbachler.io` logs in from the Mac and the phone (mobile data, not the mesh)
-- [ ] a forwarded port (dashboard "Ports") opens under `*.coder.dev.home.muehlbachler.io`
+  accepted, certificate `coder-tls-cert` ready for `coder.accessUrl` and `coder.wildcardAccessUrl`, both DNS records
+  published
+- [ ] `coder.accessUrl` logs in from the Mac and the phone (mobile data, not the mesh)
+- [ ] a forwarded port (dashboard "Ports") opens under `coder.wildcardAccessUrl`
 - [ ] a workspace terminal in the browser stays open longer than an hour
 - [ ] Coder's audit log shows the real client IP, not the gateway's
 

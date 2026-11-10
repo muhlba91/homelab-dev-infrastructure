@@ -3,10 +3,12 @@ package util_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/util"
 )
@@ -47,7 +49,7 @@ func TestParseHostsDeployOrder(t *testing.T) {
 // TestParseHostsNameMismatch rejects a file whose name (without the prefix) is not its host's name.
 func TestParseHostsNameMismatch(t *testing.T) {
 	_, err := util.ParseHostsFromFiles(writeHosts(t, map[string]string{"010-host-a.yml": "host-b"}))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "does not match the file name")
 }
 
 // TestParseHostsDuplicate rejects a host defined in two files.
@@ -56,14 +58,14 @@ func TestParseHostsDuplicate(t *testing.T) {
 		"010-host-a.yml": "host-a",
 		"020-host-a.yml": "host-a",
 	}))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "defined twice")
 }
 
 // TestParseHostsNoName rejects a file named only by its extension.
 func TestParseHostsNoName(t *testing.T) {
 	for _, file := range []string{".yml", ".yaml"} {
 		_, err := util.ParseHostsFromFiles(writeHosts(t, map[string]string{file: "host-a"}))
-		require.Error(t, err, file)
+		require.ErrorContains(t, err, "hostname label", file)
 	}
 }
 
@@ -78,16 +80,16 @@ func writeHost(t *testing.T, file, content string) string {
 
 // TestParseHostsInvalidName rejects host names that are not hostname labels.
 func TestParseHostsInvalidName(t *testing.T) {
-	for _, name := range []string{"..", "Host-A", "host_a", "-host"} {
+	for _, name := range []string{"..", "Host-A", "host_a", "-host", "a-host-name-of-thirty-one-chars"} {
 		_, err := util.ParseHostsFromFiles(writeHost(t, name+".yml", "name: "+name+"\n"+required))
-		require.Error(t, err, name)
+		require.ErrorContains(t, err, "hostname label", name)
 	}
 }
 
 // TestParseHostsMultipleDocuments rejects a file with a second YAML document.
 func TestParseHostsMultipleDocuments(t *testing.T) {
 	_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", "name: host-a\n"+required+"---\nenabled: true\n"))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "more than one YAML document")
 }
 
 // TestParseHostsEmptyLists rejects empty lists that would render like omitted ones (the defaults instead of none).
@@ -98,7 +100,7 @@ func TestParseHostsEmptyLists(t *testing.T) {
 		"trusted v6":  "trustedNetworks:\n    v6: []\n",
 	} {
 		_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", "name: host-a\n"+required+"  "+network))
-		require.Error(t, err, name)
+		require.ErrorContains(t, err, "must not be empty", name)
 	}
 
 	_, err := util.ParseHostsFromFiles(
@@ -119,4 +121,52 @@ func TestParseHostsRequired(t *testing.T) {
 		_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", "name: host-a\n"+content))
 		require.ErrorContains(t, err, name+" is required", name)
 	}
+}
+
+// TestParseHostsValues rejects values the template would render wrongly; an empty trustedPorts is valid.
+func TestParseHostsValues(t *testing.T) {
+	for want, change := range map[string]struct {
+		path  string
+		value any
+	}{
+		"network.domain must not be empty":   {"network.domain", ""},
+		"network.v4.netmask 0: must be 1-32": {"network.v4.netmask", nil},
+		"coder.accessUrl must not be empty":  {"coder.accessUrl", ""},
+		"user.uid 999: must be 1000-59999":   {"user.uid", 999},
+		"vault.address is required":          {"vault.enabled", true},
+		"field unknown not found":            {"unknown", 1},
+	} {
+		_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", withValue(t, change.path, change.value)))
+		require.ErrorContains(t, err, want, want)
+	}
+
+	_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", withValue(t, "docker.trustedPorts", []string{})))
+	require.NoError(t, err)
+}
+
+// withValue returns the valid host file host-a with one value set (nil: removed); path is dot-separated.
+func withValue(t *testing.T, path string, value any) string {
+	t.Helper()
+
+	var file map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte("name: host-a\n"+required), &file))
+	keys := strings.Split(path, ".")
+	node := file
+	for _, key := range keys[:len(keys)-1] {
+		child, ok := node[key].(map[string]any)
+		if !ok {
+			child = map[string]any{}
+			node[key] = child
+		}
+		node = child
+	}
+	if value == nil {
+		delete(node, keys[len(keys)-1])
+	} else {
+		node[keys[len(keys)-1]] = value
+	}
+
+	out, err := yaml.Marshal(file)
+	require.NoError(t, err)
+	return string(out)
 }

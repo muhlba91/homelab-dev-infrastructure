@@ -9,8 +9,12 @@ d=$1
 prune=${2:-}
 mkdir -p "$d" && chmod 0711 "$d"
 t=$(mktemp -d "$d.push.XXXXXX")
-trap 'rm -f -- "$t"/*; rmdir -- "$t"' EXIT
+trap 'rm -rf -- "$t"' EXIT
 tar -C "$t" --no-same-owner --no-same-permissions -xf -
+if [ -n "$(find "$t" -mindepth 1 \( ! -type f -o -name '.*' \) -print -quit)" ]; then
+  echo "only plain files (no directories, no dotfiles) are accepted" >&2
+  exit 1
+fi
 [ -n "$(ls -A "$t")" ] || {
   echo "no secrets received" >&2
   exit 1

@@ -7,7 +7,6 @@ let
     bool
     nullable
     typed
-    typedD
     ip4
     ip6
     cidr4
@@ -33,8 +32,6 @@ in
         '';
       };
     }) "Static IPv6 configuration (null: IPv4 only).";
-    nameservers = typedD (types.nullOr (
-      types.listOf (types.either ip4 ip6)
-    )) null "DNS servers (null: the IPv4 gateway, the site router's resolver).";
+    nameservers = nullable (types.listOf (types.either ip4 ip6)) "DNS servers (null: the IPv4 gateway, the site router's resolver).";
   };
 }

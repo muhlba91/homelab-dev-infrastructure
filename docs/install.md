@@ -2,9 +2,8 @@
 
 ## GitHub machine key
 
-Pulumi generates one ed25519 key per host (`secrets/github-ssh-key`, readable only by the host's user): git
-authenticates and signs every commit with it. The Pulumi GitHub provider has no SSH signing key resource and managing
-user keys from CI would need an account-wide token, so the key is registered by hand, once per key:
+Pulumi generates one ed25519 key per host (`secrets/github-ssh-key`): git authenticates and signs every commit with
+it. The Pulumi GitHub provider cannot register SSH signing keys, so register it by hand, once per key:
 
 ```bash
 cd infrastructure
@@ -20,14 +19,13 @@ Check on the host: `ssh -T git@github.com` greets you; a commit pushed from the 
 
 ## Reinstall
 
-`./host install <host> <address>` from the installer ([proxmox.md](proxmox.md), without the `mkfs` step): the OS disk
+`./host install <host> <ip>` from the installer ([proxmox.md](proxmox.md), without the `mkfs` step): the OS disk
 is wiped, `/data` is kept, the secrets are delivered again.
 
 ## Growing the data disk
 
-The data disk has no partition table (formatted as a whole, [proxmox.md](proxmox.md)), and `/data` is mounted with
-`autoResize`: growing the disk in Proxmox is all it takes, the filesystem follows at the next boot. ext4 grows while
-mounted, so a reboot is not needed:
+The data disk has no partition table and `/data` is mounted with `autoResize`: grow the disk in Proxmox; the
+filesystem follows at the next boot, or live:
 
 ```bash
 qm resize <vmid> scsi1 +100G                                              # on the Proxmox host
@@ -36,9 +34,8 @@ qm resize <vmid> scsi1 +100G                                              # on t
 ./host health <host>                                                      # the new usage of /data
 ```
 
-Shrinking is not possible (ext4 cannot shrink while mounted, and Proxmox does not shrink disks): start generous.
-The OS disk is resized the same way in Proxmox, then reinstalled (`./host install`): it is wiped by every install
-anyway, and nothing on it needs to be kept.
+Disks cannot shrink: start generous. The OS disk is wiped by every install: resize it in Proxmox, then
+`./host install`.
 
 ## Data disk lost
 

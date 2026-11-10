@@ -8,7 +8,6 @@ let
     nullable
     strList
     typed
-    typedD
     ;
 in
 {
@@ -19,7 +18,9 @@ in
         Pinned user id: files on /data keep their owner across reinstalls (a reinstall wipes
         /var/lib/nixos, so an allocated id could change).
       '';
-      sshKeys = strList [ ] "Public keys allowed for the user (the static keys, assets/ssh/*.pub).";
+      sshKeys =
+        strList [ ]
+          "Public keys allowed for the user (the static keys, infrastructure/assets/ssh/*.pub).";
       git = {
         name = str "Author name of the commits made on the host.";
         email = str "Author e-mail; the GitHub machine key signs for it (git's allowed signers).";
@@ -29,11 +30,6 @@ in
         `github-ssh-key`): git's allowed signers. null = no machine key (git does not sign).
       '';
     };
-
-    unfree = typedD (types.listOf types.str) [ ] ''
-      Unfree nixpkgs packages allowed on the host, by name (`lib.getName`); modules add the ones
-      they need (one predicate: two modules cannot each set allowUnfreePredicate).
-    '';
 
     storage = {
       dataLabel = strD "data" ''

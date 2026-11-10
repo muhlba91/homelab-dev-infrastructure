@@ -16,7 +16,7 @@ set -eu
 cd "$(dirname "$0")"
 RAW=0
 if [ "${1:-}" = "-r" ]; then RAW=1; shift; fi
-[ $# -gt 0 ] || { sed -n '2,7p' "$0"; exit 1; }
+[ $# -gt 0 ] || { sed -n '2,/^[^#]/p' "$0" | sed '$d'; exit 1; } # the header comment
 [ -n "${NX_NATIVE:-}" ] || { command -v nix >/dev/null 2>&1 && NX_NATIVE=1 || NX_NATIVE=0; }
 if [ -n "${DEPLOY_KEY:-}" ] && [ ! -f "$DEPLOY_KEY" ]; then echo "nx: no deploy key at $DEPLOY_KEY" >&2; exit 1; fi
 
