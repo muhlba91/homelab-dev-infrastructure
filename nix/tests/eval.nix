@@ -150,6 +150,15 @@ lib.runTests {
       configDir = dev.config.systemd.services.coder.environment.CODER_CONFIG_DIR;
       bootstrapUser = dev.config.systemd.services.coder-bootstrap.serviceConfig.User;
       bootstrapCredential = dev.config.systemd.services.coder-bootstrap.serviceConfig.LoadCredential;
+      inherit (dev.config.services.coder) accessUrl wildcardAccessUrl;
+      proxy = {
+        inherit (dev.config.systemd.services.coder.environment)
+          CODER_PROXY_TRUSTED_HEADERS
+          CODER_PROXY_TRUSTED_ORIGINS
+          CODER_SECURE_AUTH_COOKIE
+          CODER_DERP_FORCE_WEBSOCKETS
+          ;
+      };
       minimal = minimal.config.services.coder.enable;
     };
     expected = {
@@ -163,6 +172,14 @@ lib.runTests {
       configDir = "/data/coder/config";
       bootstrapUser = "daniel";
       bootstrapCredential = "admin-password:/var/lib/secrets/coder-admin-password";
+      accessUrl = "https://coder.example.org";
+      wildcardAccessUrl = "*.coder.example.org";
+      proxy = {
+        CODER_PROXY_TRUSTED_HEADERS = "X-Forwarded-For";
+        CODER_PROXY_TRUSTED_ORIGINS = "10.0.0.0/8,fc00::/7,2001:678:dc0::/48";
+        CODER_SECURE_AUTH_COOKIE = "true";
+        CODER_DERP_FORCE_WEBSOCKETS = "true";
+      };
       minimal = false;
     };
   };

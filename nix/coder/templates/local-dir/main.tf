@@ -133,7 +133,8 @@ resource "coder_metadata" "dir" {
 }
 
 # The agent: an enabled user unit while the workspace is started. Idempotent (a start after a
-# build interrupted by a Coder restart repairs it).
+# build interrupted by a Coder restart repairs it). The agent runs on the server's host and talks
+# to it locally, not through the access URL (the cluster's public gateway, plan Phase 5).
 resource "terraform_data" "agent" {
   count = data.coder_workspace.me.start_count
 
@@ -149,7 +150,7 @@ resource "terraform_data" "agent" {
       set -eu
       umask 077
       mkdir -p "$(dirname '${local.envfile}')" '${local.state}' ~/.config/systemd/user
-      printf 'CODER_AGENT_TOKEN=%s\nCODER_AGENT_URL=%s\n' '${coder_agent.main.token}' '${data.coder_workspace.me.access_url}' > '${local.envfile}'
+      printf 'CODER_AGENT_TOKEN=%s\nCODER_AGENT_URL=%s\n' '${coder_agent.main.token}' 'http://127.0.0.1:3000' > '${local.envfile}'
       cat > ~/.config/systemd/user/${local.unit}.service <<UNIT
       [Unit]
       Description=Coder agent of workspace ${local.name}

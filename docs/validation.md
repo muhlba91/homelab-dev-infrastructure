@@ -49,6 +49,16 @@ Run as the host's user:
 - [ ] `fnox exec` in a pilot repository works
 - [ ] a rotated secret ID (`pulumi up` + `./host push-secrets <host>`) restarts the agent with no manual step
 
+## Phase 5: public Coder (cluster gateway)
+
+- [ ] the apps repo's `external-services` is reconciled: `kubectl -n external-services get listenerset coder-listeners`
+  accepted, certificate `coder-tls-cert` ready with both names (`coder.dev.home.muehlbachler.io`,
+  `*.coder.dev.home.muehlbachler.io`), both DNS records published
+- [ ] `https://coder.dev.home.muehlbachler.io` logs in from the Mac and the phone (mobile data, not the mesh)
+- [ ] a forwarded port (dashboard "Ports") opens under `*.coder.dev.home.muehlbachler.io`
+- [ ] a workspace terminal in the browser stays open longer than an hour
+- [ ] Coder's audit log shows the real client IP, not the gateway's
+
 ## Developer machine access (Q31)
 
 After github-infrastructure's `pulumi up` and the Pulumi tokens in `dev-infrastructure/`; run as the host's user:

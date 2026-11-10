@@ -36,7 +36,14 @@ in
       are directories in ~/workspaces); PostgreSQL on the data disk. Needs the secret
       `coder-admin-password` (the first user).
     '';
-    accessUrl = nullable types.str "URL Coder is reached at (null: http://<mgmt.address>:3000).";
+    accessUrl = nullable types.str ''
+      URL Coder is reached at (null: http://<mgmt.address>:3000). An https URL means a reverse
+      proxy in front (the cluster's gateway): Coder then trusts its X-Forwarded-For from the
+      trusted networks, sets secure cookies and relays DERP over websockets.
+    '';
+    wildcardAccessUrl = nullable types.str ''
+      Hostname pattern for workspace apps (e.g. `*.coder.example.org`; null: path-based apps only).
+    '';
   };
 
   options.dev.vault = {

@@ -51,7 +51,11 @@
       enable = true;
       trustedPorts = [ "8000-8999" ];
     };
-    coder.enable = true;
+    coder = {
+      enable = true;
+      accessUrl = "https://coder.example.org";
+      wildcardAccessUrl = "*.coder.example.org";
+    };
     backup.repository = "s3:https://s3.fr-par.scw.cloud/fixture-backups/dev/fixture-dev";
     vault = {
       enable = true;

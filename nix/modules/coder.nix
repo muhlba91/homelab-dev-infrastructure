@@ -21,6 +21,8 @@ let
   accessUrl =
     if c.accessUrl != null then c.accessUrl else "http://${cfg.mgmt.address}:${toString port}";
   localUrl = "http://127.0.0.1:${toString port}";
+  # Behind a TLS-terminating reverse proxy (Phase 5: the cluster's gateway).
+  proxied = lib.hasPrefix "https://" accessUrl;
   templates = ../coder/templates;
   pgPackage = pkgs.postgresql_17;
   # What the server, its provisioner (Terraform's local-exec) and the oneshots run with.
@@ -76,6 +78,7 @@ lib.mkIf c.enable {
     group = "users";
     listenAddress = "0.0.0.0:${toString port}";
     inherit accessUrl;
+    inherit (c) wildcardAccessUrl;
     database = {
       createLocally = false;
       host = "/run/postgresql";
@@ -93,6 +96,15 @@ lib.mkIf c.enable {
       # The provisioner's local-exec manages the user's systemd units (the workspace agents).
       XDG_RUNTIME_DIR = "/run/user/${uid}";
       DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/${uid}/bus";
+    }
+    // lib.optionalAttrs proxied {
+      # The client's address for audit logs and Coder's per-IP login rate limit; only the
+      # trusted networks may set it (the gateway reaches the host from the cluster's pods).
+      CODER_PROXY_TRUSTED_HEADERS = "X-Forwarded-For";
+      CODER_PROXY_TRUSTED_ORIGINS = lib.concatStringsSep "," (cfg.trusted.v4 ++ cfg.trusted.v6);
+      CODER_SECURE_AUTH_COOKIE = "true";
+      # The gateway upgrades only websockets, not DERP's own upgrade.
+      CODER_DERP_FORCE_WEBSOCKETS = "true";
     };
   };
   systemd.services.coder = {

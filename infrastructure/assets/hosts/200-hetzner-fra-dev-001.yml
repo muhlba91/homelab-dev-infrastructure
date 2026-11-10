@@ -48,6 +48,8 @@ docker:
 # optional Coder settings
 coder:
   enabled: true
+  accessUrl: https://coder.dev.home.muehlbachler.io
+  wildcardAccessUrl: "*.coder.dev.home.muehlbachler.io"
 
 # optional Vault Agent settings
 vault:

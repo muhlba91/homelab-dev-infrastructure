@@ -169,6 +169,9 @@ Conventions (as in the router repo):
       {{- with .AccessURL }}
       accessUrl = "{{ . }}";
       {{- end }}
+      {{- with .WildcardAccessURL }}
+      wildcardAccessUrl = "{{ . }}";
+      {{- end }}
     };
     {{- end }}
   };
