@@ -78,7 +78,24 @@ Stack output `hosts.<host>`:
 | `GOOGLE_APPLICATION_CREDENTIALS` (or `gcloud auth application-default login`) | the secrets provider (Cloud KMS) |
 | `VAULT_TOKEN` | Vault (address: stack config `vault:address`): reads the hosts' AppRole role IDs and manages their secret IDs (CI: the repository's JWT role) |
 
-Locally they live in `local.env` (git-ignored).
+They come from Vault through [fnox](https://fnox.jdx.dev) (`fnox.toml`, installed by mise), in CI and locally:
+
+- **CI:** `hashicorp/vault-action` only logs in (GitHub OIDC, `exportToken`: `VAULT_TOKEN` is the repository's JWT
+  role); fnox reads the values listed in `fnox.toml`. The host deploy job adds the Tailscale OAuth client
+  (`FNOX_PROFILE=host-deploy`); the S3 copies map the Scaleway keys to `AWS_*` in their step.
+- **Locally** (`FNOX_PROFILE=dev`, set on the Mac by the dotfiles and on the dev VMs by `fnox.nix`): the Pulumi token
+  (`dev-infrastructure/pulumi-muhlba91`) and Google Cloud credentials impersonating the CI service account, built
+  from the machine's own key (`GCP_SOURCE_CREDENTIALS` in the global fnox config). `VAULT_TOKEN` is the machine's own
+  token through the Vault CLI's token helper (Mac: admin; dev VM: the host's AppRole token, which can read the role
+  IDs but not create secret IDs, so `up` on a VM runs `mise run up:vm`).
+
+```bash
+cd infrastructure
+fnox exec -- pulumi preview --stack prod
+fnox exec -- mise run up:vm --stack prod   # on a dev VM
+```
+
+`fnox.local.toml` (git-ignored) can override values for experiments.
 
 ---
 
