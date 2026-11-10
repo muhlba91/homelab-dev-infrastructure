@@ -1,9 +1,9 @@
 # Host validation
 
-Run after an install and after changes that touch the base system. `./host health <host>` covers the automatic part
-(failed units, data disk usage, Coder answering, the Vault token, Docker running, pending reboot).
+Run after an install and after changes to the base system; `./host health <host>` covers the automatic part.
+Sections other than the base system apply only to hosts with that feature enabled.
 
-## Phase 1
+## Base system
 
 - [ ] `./host install` brings up the VM from the ISO; `./host deploy <host>` is a no-op when nothing changed
 - [ ] `./host ssh <host>` works with the pinned host key; `ssh <user>@<address>` works with the YubiKey
@@ -11,10 +11,10 @@ Run after an install and after changes that touch the base system. `./host healt
 - [ ] `loginctl show-user <user> -p Linger` is `yes`
 - [ ] the firewall: SSH from the trusted networks only (`nft list ruleset`)
 - [ ] VS Code Remote-SSH from the Mac opens a folder on the host
-- [ ] `ssh -T git@github.com` greets you; a commit pushed from the host shows "Verified" on GitHub
+- [ ] the GitHub machine key works ([install.md](install.md#github-machine-key))
 - [ ] a second `./host install` keeps everything on `/data`
 
-## Phase 2: rootless Docker
+## Rootless Docker
 
 Run as the host's user (an SSH session sets `DOCKER_HOST`):
 
@@ -27,9 +27,9 @@ Run as the host's user (an SSH session sets `DOCKER_HOST`):
 - [ ] a deploy that changes Docker's unit prints "NOT restarting the following user units: docker.service", and
   running containers stay up
 
-## Phase 3: Coder
+## Coder
 
-- [ ] `http://<address>:3000` shows the login; the admin (`pulumi stack output hosts --show-secrets`) logs in
+- [ ] the Coder URL (`coder.accessUrl`) shows the login; the admin (`pulumi stack output hosts --show-secrets`) logs in
 - [ ] the `local-dir` template is pushed (`systemctl status coder-templates`); a workspace with a repo parameter is
   created, cloned, `mise install` done
 - [ ] the workspace opens from VS Code (Coder extension and plain Remote-SSH) and from the phone browser (terminal)
@@ -39,7 +39,7 @@ Run as the host's user (an SSH session sets `DOCKER_HOST`):
   in [install.md](install.md#restoring-coders-database) works
 - [ ] `./host deploy` of a system change prints "host: backup (restic-backups-coder.service)" first
 
-## Phase 4: Vault Agent
+## Vault Agent and fnox
 
 Run as the host's user:
 
@@ -49,9 +49,9 @@ Run as the host's user:
 - [ ] `fnox exec` in a pilot repository works
 - [ ] a rotated secret ID (`pulumi up` + `./host push-secrets <host>`) restarts the agent with no manual step
 
-## Phase 5: public Coder (cluster gateway)
+## Public Coder (cluster gateway)
 
-- [ ] the apps repo's `external-services` is reconciled: `kubectl -n external-services get listenerset coder-listeners`
+- [ ] in the home cluster (apps repo, `external-services`): `kubectl -n external-services get listenerset coder-listeners`
   accepted, certificate `coder-tls-cert` ready with both names (`coder.dev.home.muehlbachler.io`,
   `*.coder.dev.home.muehlbachler.io`), both DNS records published
 - [ ] `https://coder.dev.home.muehlbachler.io` logs in from the Mac and the phone (mobile data, not the mesh)
@@ -59,9 +59,9 @@ Run as the host's user:
 - [ ] a workspace terminal in the browser stays open longer than an hour
 - [ ] Coder's audit log shows the real client IP, not the gateway's
 
-## Developer machine access (Q31)
+## Developer machine access
 
-After github-infrastructure's `pulumi up` and the Pulumi tokens in `dev-infrastructure/`; run as the host's user:
+Run as the host's user:
 
 - [ ] `echo $FNOX_PROFILE $FNOX_CONFIG_DIR` shows `dev /etc/fnox`, in a shell and in a workspace terminal
 - [ ] `vault kv get -field=credentials dev-infrastructure/gcp-dev-<host> >/dev/null` and

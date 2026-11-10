@@ -5,7 +5,6 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/muhlba91/pulumi-shared-library/pkg/util/dir"
 	"github.com/muhlba91/pulumi-shared-library/pkg/util/storage"
 	scwUpload "github.com/muhlba91/pulumi-shared-library/pkg/util/storage/scaleway"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -14,14 +13,14 @@ import (
 	"github.com/muhlba91/homelab-dev-infrastructure/pkg/lib/host"
 )
 
-// outputDir is the local directory the files are written to (./host's OUTPUTS).
-const outputDir = "outputs"
-
-// secretPermissions are the permissions of the written files.
-const secretPermissions os.FileMode = 0o600
-
-// outputDirPermissions are the permissions of the output directories, which hold private keys.
-const outputDirPermissions os.FileMode = 0o700
+const (
+	// outputDir is the local directory the files are written to (./host's OUTPUTS).
+	outputDir = "outputs"
+	// filePermissions are the permissions of the written files.
+	filePermissions os.FileMode = 0o600
+	// dirPermissions are the permissions of the output directories, which hold private keys.
+	dirPermissions os.FileMode = 0o700
+)
 
 // Run is the Pulumi program: it creates the resources of every host and writes its files.
 // ctx: The Pulumi context.
@@ -31,22 +30,18 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	if dErr := dir.Create(outputDir); dErr != nil {
-		return dErr
-	}
-
 	outputs := pulumi.Map{}
-	for _, data := range hosts {
-		hostData, hErr := host.ConfigureHost(ctx, data, sshKeys)
+	for _, h := range hosts {
+		data, hErr := host.ConfigureHost(ctx, h, sshKeys)
 		if hErr != nil {
 			return hErr
 		}
 
-		if wErr := writeOutputFiles(ctx, data.Name, hostData); wErr != nil {
+		if wErr := writeOutputFiles(ctx, h.Name, data); wErr != nil {
 			return wErr
 		}
 
-		outputs[data.Name] = host.Output(data, hostData)
+		outputs[h.Name] = host.Output(h, data)
 	}
 
 	ctx.Export("hosts", outputs)
@@ -54,10 +49,8 @@ func Run(ctx *pulumi.Context) error {
 	return nil
 }
 
-// writeOutputFiles writes the files of a host below outputs/ (the layout ./host reads) and uploads them to the
-// bucket under the same paths: hosts/<host>/vars.nix and, for an enabled host, keys/<host>/deploy-key (the deploy
-// user's private key) and keys/<host>/secrets/ (pushed to the host: the SSH host key, the GitHub machine key, the
-// Coder admin password, the backup credentials, the Vault Agent's login).
+// writeOutputFiles writes a host's files below outputs/ (the layout ./host reads) and uploads them to the bucket
+// under the same paths: hosts/<host>/vars.nix, keys/<host>/deploy-key and keys/<host>/secrets/*.
 // ctx: The Pulumi context.
 // name: The name of the host.
 // hostData: The generated resources and files of the host.
@@ -100,7 +93,7 @@ func writeOutputFiles(ctx *pulumi.Context, name string, hostData *host.Data) err
 	for _, file := range files {
 		// The files are written asynchronously, and a failed write is only logged: create the directory first.
 		outputPath := filepath.Join(".", outputDir, filepath.FromSlash(file.dir))
-		if err := os.MkdirAll(outputPath, outputDirPermissions); err != nil {
+		if err := os.MkdirAll(outputPath, dirPermissions); err != nil {
 			return err
 		}
 
@@ -111,7 +104,7 @@ func writeOutputFiles(ctx *pulumi.Context, name string, hostData *host.Data) err
 			Name:        file.name,
 			Content:     file.content,
 			Labels:      config.CommonLabels(),
-			Permissions: []os.FileMode{secretPermissions},
+			Permissions: []os.FileMode{filePermissions},
 		})
 	}
 

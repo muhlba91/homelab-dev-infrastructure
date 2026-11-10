@@ -1,14 +1,12 @@
-# Vault Agent (Phase 4 of the plan, D9, D34, D42): logs in with the host's AppRole role
-# (dev-infrastructure-<host>, created by github-infrastructure: read-only on the KV mounts) and
-# keeps a short-lived token (1 h, renewed, at most 24 h, then a new login) for the host's user.
-# The agent runs as its own user `vault-agent`, the only one that can read the role ID and the
-# secret ID; the token sink is readable by the group `vault-token` (the user is a member), so
-# everything running as the user (agents included, D30) gets the token, never the secret ID.
-# The Vault CLI's token helper reads the sink: `vault`, fnox (`vault print token`) and Pulumi's
-# Vault provider find the token, and `vault login` cannot overwrite it.
+# Vault Agent: logs in with the host's AppRole role (dev-infrastructure-<host>, read-only on the KV
+# mounts) and keeps a short-lived token for the user. The agent is its own user, the only reader of
+# the role and secret ID; the token sink is readable by the group `vault-token` (the user). The
+# CLI's token helper reads the sink, so `vault`, fnox and Pulumi find it and `vault login` cannot
+# replace it.
 {
   config,
   lib,
+  dlib,
   pkgs,
   ...
 }:
@@ -17,14 +15,14 @@ let
   v = cfg.vault;
   instance = "dev";
   unit = "vault-agent-${instance}.service";
-  uid = 950; # pinned like every identity owning files (D33)
+  uid = 950; # pinned (owns files); also the gid of vault-token
   sink = "/run/vault-agent/token";
   tokenHelper = pkgs.writeShellScript "vault-token-helper" ''
-    # get: the agent's token; store and erase do nothing (the agent owns the token). An unreadable
-    # sink prints nothing (as before) and the cause on stderr (Q32: a stale user manager).
+    # get: the agent's token (an unreadable sink: nothing, and the cause on stderr); store and
+    # erase do nothing (the agent owns the token).
     if [ "''${1:-}" = get ]; then
       if [ -r ${sink} ]; then
-        cat ${sink}
+        ${pkgs.coreutils}/bin/cat ${sink}
       else
         echo "vault-token-helper: cannot read ${sink}: the agent has no token yet, or this process lacks the group vault-token (stale user manager: see dev-health)" >&2
       fi
@@ -36,9 +34,7 @@ let
   env = {
     VAULT_ADDR = v.address;
     VAULT_CONFIG_PATH = "${cliConfig}";
-    # Pulumi's (Terraform's) Vault provider uses the token as is: the host policy has no
-    # auth/token/create. Minted repository tokens (fnox, Q31) could create child tokens, but the
-    # variable stays so long runs behave the same here and on the Mac (local secrets plan D52).
+    # Pulumi's Vault provider uses the token as is (no child token), the same here and on the Mac.
     TERRAFORM_VAULT_SKIP_CHILD_TOKEN = "true";
   };
 in
@@ -106,8 +102,5 @@ lib.mkIf v.enable {
   };
 
   environment.variables = env;
-  # The user manager (workspace agents, user services) as well.
-  systemd.user.extraConfig = ''
-    DefaultEnvironment=${lib.concatStringsSep " " (lib.mapAttrsToList (n: val: "\"${n}=${val}\"") env)}
-  '';
+  systemd.user.extraConfig = dlib.userEnv env;
 }

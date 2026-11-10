@@ -1,14 +1,11 @@
-# fnox on the host (Q31 of the plan, the local secrets plan): repositories read their secrets from
-# Vault with `fnox exec`, the same way on the Mac and here. fnox itself comes from each repository's
-# mise.toml. The host selects the repositories' `dev` profile (Pulumi token, a repository-scoped
-# Vault token minted through the token role) and gets a global config, managed here: the Vault
-# provider for the developer machines' mount `dev-infrastructure` (token through the CLI's token
-# helper, i.e. the Vault Agent's token) and the host's own GCP key as the source of the
-# impersonation file the repositories build (`GCP_SOURCE_CREDENTIALS`, only in the `dev` profile
-# and never put into the environment).
+# fnox: repositories read their secrets from Vault with `fnox exec` (fnox from their mise.toml). The
+# host selects their `dev` profile and gets a global config in /etc/fnox: the Vault provider for the
+# mount `dev-infrastructure` (the Vault Agent's token via the CLI's token helper) and this host's GCP
+# key as the source of the repositories' impersonation file (never exported).
 {
   config,
   lib,
+  dlib,
   ...
 }:
 let
@@ -40,8 +37,5 @@ lib.mkIf cfg.vault.enable {
   environment.etc."fnox/config.toml".text = globalConfig;
 
   environment.variables = env;
-  # The user manager (workspace agents, user services) as well: coder_agent.env does not set them.
-  systemd.user.extraConfig = ''
-    DefaultEnvironment=${lib.concatStringsSep " " (lib.mapAttrsToList (n: val: "\"${n}=${val}\"") env)}
-  '';
+  systemd.user.extraConfig = dlib.userEnv env;
 }

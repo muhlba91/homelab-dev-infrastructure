@@ -2,9 +2,12 @@
 { lib, ... }:
 {
   _module.args.dlib = {
-    # Address of a CIDR ("10.100.60.1/16" -> "10.100.60.1").
-    addr = cidr: builtins.head (lib.splitString "/" cidr);
     # An nftables set literal ("{ a, b }").
     nftSet = l: "{ ${lib.concatStringsSep ", " l} }";
+    # systemd.user.extraConfig line giving the user manager (workspace agents, user services)
+    # environment variables, which the session-only `environment.variables` does not reach.
+    userEnv =
+      env:
+      "DefaultEnvironment=${lib.concatStringsSep " " (lib.mapAttrsToList (n: v: ''"${n}=${v}"'') env)}\n";
   };
 }

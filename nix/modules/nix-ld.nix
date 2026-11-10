@@ -1,8 +1,11 @@
-# Software from outside Nix (§5.5 of the plan): mise's prebuilt runtimes (Python from
-# python-build-standalone, Node, ...), the VS Code Server and npm CLIs are dynamically linked for
-# a generic Linux. nix-ld provides the loader and a library set (extended when something fails);
-# envfs resolves `#!/bin/bash` and `#!/usr/bin/env python3`.
-{ lib, pkgs, ... }:
+# Generic-Linux binaries (mise runtimes, the VS Code Server, npm CLIs): nix-ld provides the loader
+# and libraries (extend the list when something fails), envfs `#!/bin/bash` and `#!/usr/bin/env`.
+{
+  lib,
+  pkgs,
+  dlib,
+  ...
+}:
 let
   ld = "/run/current-system/sw/share/nix-ld/lib/ld.so";
   libraryPath = "/run/current-system/sw/share/nix-ld/lib";
@@ -34,9 +37,10 @@ in
 
   # The module sets NIX_LD* for login sessions only; the user manager (workspace agents, user
   # services) gets them here.
-  systemd.user.extraConfig = ''
-    DefaultEnvironment="NIX_LD=${ld}" "NIX_LD_LIBRARY_PATH=${libraryPath}"
-  '';
+  systemd.user.extraConfig = dlib.userEnv {
+    NIX_LD = ld;
+    NIX_LD_LIBRARY_PATH = libraryPath;
+  };
 
   services.envfs.enable = lib.mkDefault true;
 }

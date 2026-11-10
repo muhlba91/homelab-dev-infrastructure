@@ -1,5 +1,5 @@
-# Base system: identity, nix (settings, garbage collection), the hardware watchdog, the deploy
-# user, SSH, tools. Hardware-independent (as the router repo's base.nix, minus the router tools).
+# Base system: identity, nix settings and garbage collection, the watchdog, the deploy user, SSH,
+# tools. Hardware-independent.
 {
   config,
   lib,
@@ -96,9 +96,6 @@ in
       PermitRootLogin = "no";
     };
   };
-
-  # The QEMU guest agent (Proxmox: shutdown, IP display); the qemu profile enables it as well.
-  services.qemuGuest.enable = lib.mkDefault true;
 
   # Man pages stay; the NixOS manual (built with every system) is not needed.
   documentation.nixos.enable = false;

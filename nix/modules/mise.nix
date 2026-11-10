@@ -1,6 +1,4 @@
-# The development environment of the host's user (§5.5 of the plan): mise for tool versions
-# (runtimes run through nix-ld), direnv, git and the CLI tools from nixpkgs, configured
-# system-wide (home-manager vs chezmoi is decided later).
+# The user's dev environment, system-wide: mise (runtimes via nix-ld), direnv, git and CLI tools.
 {
   config,
   pkgs,

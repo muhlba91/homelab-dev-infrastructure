@@ -1,9 +1,6 @@
-# Database backups (Phase 3 of the plan, D11): Coder's PostgreSQL database is dumped nightly
-# into /data/backup/coder and backed up with restic to the backup bucket (dev/<host>/coder; the last
-# 3 snapshots plus the latest of the previous two weeks). The credentials (secrets `restic-password`, `restic-s3`: the S3
-# keys as an environment file) come from Pulumi. `./host deploy` runs the backup before every
-# deploy that changes the system: a Coder schema migration or a PostgreSQL change cannot be
-# rolled back, the dump can. Restore: docs/install.md.
+# Nightly restic backup of Coder's database to dev.backup.repository/coder (credentials: secrets
+# `restic-password`, `restic-s3`). `./host deploy` runs it before a system change: a Coder schema
+# migration cannot be rolled back, the dump can. Restore: docs/install.md.
 {
   config,
   lib,

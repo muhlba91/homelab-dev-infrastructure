@@ -25,159 +25,123 @@ const (
 	githubKeyRotationDays = 365
 )
 
-// Data holds the generated resources and files of a host.
+// Data holds the generated resources and files of a host. The keys are nil for a disabled host; the Coder and
+// backup values also for a host without Coder, the Vault values for a host without the Vault Agent.
 type Data struct {
-	// DeployKey is the SSH key pair of the deploy user of the host; nil for a disabled host.
+	// DeployKey is the SSH key of the deploy user.
 	DeployKey *tlsProv.PrivateKey
-	// HostKey is the SSH host key pair of the host (its public key is pinned in vars.nix); nil for a disabled host.
+	// HostKey is the SSH host key (its public key is pinned in vars.nix).
 	HostKey *tlsProv.PrivateKey
-	// GitHubKey is the GitHub machine key of the host's user (authentication and commit signing; its public key is
-	// in vars.nix for git's allowed signers and a stack output for the registration on GitHub); nil for a disabled
-	// host.
+	// GitHubKey is the user's GitHub key for authentication and commit signing.
 	GitHubKey *tlsProv.PrivateKey
-	// CoderAdminPassword is the password of Coder's first (admin) user (secret); nil for a disabled host or one
-	// without Coder.
+	// CoderAdminPassword is the password of Coder's first user (secret).
 	CoderAdminPassword *pulumi.StringOutput
-	// Backup holds the credentials of the host's database backups; nil for a disabled host or one without Coder
-	// (the only application with a database so far).
+	// Backup holds the credentials of the database backups.
 	Backup *backup.Credentials
-	// Vault holds the Vault Agent's AppRole login; nil for a disabled host or one without the agent.
+	// Vault holds the Vault Agent's AppRole login.
 	Vault *vault.Credentials
-	// Vars is the content of the vars.nix file of the host.
+	// Vars is the content of the host's vars.nix.
 	Vars pulumi.StringOutput
 }
 
-// ConfigureHost creates the resources of a host and renders its vars.nix. An enabled host gets a deploy key, an SSH
-// host key, a GitHub machine key and, if it runs Coder, a Coder admin password and backup credentials (its restic
-// repositories in the backup bucket), and if it runs the Vault Agent, the AppRole role ID and a secret ID. A disabled
-// host gets none of them
-// (disabling a host deletes them); its vars.nix holds only the static SSH keys, so it is still rendered and checked,
-// but not deployable.
+// ConfigureHost creates a host's keys and secrets and renders its vars.nix. A disabled host gets only the vars.nix
+// with the static SSH keys: it is rendered and checked, but not deployable.
 // ctx: The Pulumi context.
 // h: The host configuration.
-// staticSSHKeys: The static public SSH keys of the deploy user and the host's user; the host's generated deploy key
-// is added to the deploy user's.
+// staticSSHKeys: The static public SSH keys of the deploy user and the user.
 func ConfigureHost(ctx *pulumi.Context, h *host.Config, staticSSHKeys []string) (*Data, error) {
 	if !h.IsEnabled() {
-		vars, vErr := renderVars(h, staticSSHKeys, staticSSHKeys, "", "", "")
-		if vErr != nil {
-			return nil, vErr
+		vars, err := renderVars(&varsData{Host: h, DeployKeys: staticSSHKeys, UserKeys: staticSSHKeys})
+		if err != nil {
+			return nil, err
 		}
-
 		return &Data{Vars: contextOutput(ctx, vars)}, nil
 	}
 
-	deployKey, dErr := tls.Create(ctx, config.ResourceName(fmt.Sprintf("%s-deploy", h.Name)), &tls.CreateOptions{
-		Algorithm: tls.AlgorithmED25519,
-	})
-	if dErr != nil {
-		return nil, dErr
+	data := &Data{}
+	var err error
+	if data.DeployKey, err = createKey(ctx, h.Name, "deploy", nil); err != nil {
+		return nil, err
+	}
+	if data.HostKey, err = createKey(ctx, h.Name, "host", nil); err != nil {
+		return nil, err
+	}
+	githubRotation := &rModel.Options{Days: githubKeyRotationDays}
+	if data.GitHubKey, err = createKey(ctx, h.Name, "github", githubRotation); err != nil {
+		return nil, err
 	}
 
-	hostKey, hErr := tls.Create(ctx, config.ResourceName(fmt.Sprintf("%s-host", h.Name)), &tls.CreateOptions{
-		Algorithm: tls.AlgorithmED25519,
-	})
-	if hErr != nil {
-		return nil, hErr
-	}
-
-	githubKey, gErr := tls.Create(ctx, config.ResourceName(fmt.Sprintf("%s-github", h.Name)), &tls.CreateOptions{
-		Algorithm: tls.AlgorithmED25519,
-		Rotation:  &rModel.Options{Days: githubKeyRotationDays},
-	})
-	if gErr != nil {
-		return nil, gErr
-	}
-
-	var coderAdminPassword *pulumi.StringOutput
+	backupRepository := ""
 	if h.UsesCoder() {
-		// The password helper adds no type prefix; the host name is unique within the stack.
 		password, pErr := random.CreatePassword(
 			ctx,
 			fmt.Sprintf("password-coder-admin-%s-%s", h.Name, config.Environment),
-			&random.PasswordOptions{
-				Length:  passwordLength,
-				Special: false,
-			},
+			&random.PasswordOptions{Length: passwordLength, Special: false},
 		)
 		if pErr != nil {
 			return nil, pErr
 		}
-		coderAdminPassword = &password.Password
-	}
-	var backupCredentials *backup.Credentials
-	backupRepository := ""
-	if h.UsesCoder() {
-		creds, bErr := backup.Create(ctx, h.Name)
-		if bErr != nil {
-			return nil, bErr
+		data.CoderAdminPassword = &password.Password
+
+		if data.Backup, err = backup.Create(ctx, h.Name); err != nil {
+			return nil, err
 		}
-		backupCredentials = creds
 		backupRepository = backup.Repository(h.Name)
 	}
-	var vaultCredentials *vault.Credentials
+
 	if h.UsesVault() {
-		creds, vErr := vault.Create(ctx, h.Name)
-		if vErr != nil {
-			return nil, vErr
+		if data.Vault, err = vault.Create(ctx, h.Name); err != nil {
+			return nil, err
 		}
-		vaultCredentials = creds
 	}
 
 	// An error returned from the apply fails the update instead of writing an empty file.
-	vars, _ := pulumi.All(deployKey.PublicKeyOpenssh, hostKey.PublicKeyOpenssh, githubKey.PublicKeyOpenssh).
-		ApplyT(func(keys []any) (string, error) {
-			deployPublicKey, _ := keys[0].(string)
-			hostPublicKey, _ := keys[1].(string)
-			githubPublicKey, _ := keys[2].(string)
-			return renderVars(
-				h,
-				slices.Concat(staticSSHKeys, []string{strings.TrimSpace(deployPublicKey)}),
-				staticSSHKeys,
-				strings.TrimSpace(hostPublicKey),
-				strings.TrimSpace(githubPublicKey),
-				backupRepository,
-			)
-		}).(pulumi.StringOutput)
+	data.Vars, _ = pulumi.All(
+		data.DeployKey.PublicKeyOpenssh, data.HostKey.PublicKeyOpenssh, data.GitHubKey.PublicKeyOpenssh,
+	).ApplyT(func(keys []any) (string, error) {
+		public := make([]string, len(keys))
+		for i, k := range keys {
+			s, ok := k.(string)
+			if !ok {
+				return "", fmt.Errorf("host %s: public key %d is not a string", h.Name, i)
+			}
+			public[i] = strings.TrimSpace(s)
+		}
+		return renderVars(&varsData{
+			Host:             h,
+			DeployKeys:       slices.Concat(staticSSHKeys, public[:1]),
+			UserKeys:         staticSSHKeys,
+			HostKey:          public[1],
+			GitHubKey:        public[2],
+			BackupRepository: backupRepository,
+		})
+	}).(pulumi.StringOutput)
 
-	return &Data{
-		DeployKey:          deployKey,
-		HostKey:            hostKey,
-		GitHubKey:          githubKey,
-		CoderAdminPassword: coderAdminPassword,
-		Backup:             backupCredentials,
-		Vault:              vaultCredentials,
-		Vars:               vars,
-	}, nil
+	return data, nil
 }
 
-// VarsDir returns the directory of a host's vars.nix below the output directory and the bucket path: hosts/<host>.
-// hosts/ is the flake's Nix input, copied into the world-readable Nix store as a whole: nothing but the vars.nix
-// files may ever be written there.
+// createKey creates an ed25519 key of a host, named <global name>-<host>-<purpose>-<environment>.
+// ctx: The Pulumi context.
+// name: The host name.
+// purpose: The key's purpose (deploy, host, github).
+// rotation: The rotation; nil for none.
+func createKey(ctx *pulumi.Context, name, purpose string, rotation *rModel.Options) (*tlsProv.PrivateKey, error) {
+	return tls.Create(ctx, config.ResourceName(fmt.Sprintf("%s-%s", name, purpose)), &tls.CreateOptions{
+		Algorithm: tls.AlgorithmED25519,
+		Rotation:  rotation,
+	})
+}
+
+// VarsDir returns hosts/<host>, below the output directory and the bucket path. hosts/ is the flake's input and
+// lands in the world-readable Nix store: only vars.nix files may be written there.
 // name: The host name.
 func VarsDir(name string) string {
 	return path.Join("hosts", name)
 }
 
-// KeysDir returns the directory of a host's private files below the output directory and the bucket path:
-// keys/<host>, holding the deploy user's private key and, below secrets/, the files pushed to the host.
+// KeysDir returns keys/<host>, below the output directory and the bucket path: the deploy key and, in secrets/,
+// the files pushed to the host.
 // name: The host name.
 func KeysDir(name string) string {
 	return path.Join("keys", name)
-}
-
-// contextOutput returns a known value as an output of the program's context. A plain pulumi.String output is not
-// awaited when the program ends, so the applies writing it to a file could be cut off.
-// ctx: The Pulumi context.
-// value: The value of the output.
-func contextOutput(ctx *pulumi.Context, value string) pulumi.StringOutput {
-	out, resolve, _ := ctx.NewOutput()
-	resolve(value)
-
-	str, _ := out.ApplyT(func(v any) string {
-		s, _ := v.(string)
-		return s
-	}).(pulumi.StringOutput)
-
-	return str
 }

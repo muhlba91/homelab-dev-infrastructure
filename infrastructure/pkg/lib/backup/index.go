@@ -1,5 +1,5 @@
-// Package backup creates the credentials of a host's database backups: restic repositories in the backup bucket,
-// one per application, below dev/<host>/<application>/.
+// Package backup creates a host's database backup credentials: a restic password and S3 access to the backup
+// bucket (repositories below dev/<host>/<application>/).
 package backup
 
 import (
@@ -45,9 +45,8 @@ func Repository(host string) string {
 	)
 }
 
-// Create creates a host's backup credentials: a Scaleway IAM application with an API key and the object storage
-// permissions in the project (the backup bucket's), and the restic password. The application and the policy are
-// created directly (named like the shared library's helpers): those do not take the organization.
+// Create creates a host's Scaleway IAM application, API key and policy, and the restic password. The application
+// and the policy are created directly: the shared library's helpers do not take the organization.
 // ctx: The Pulumi context.
 // host: The host name.
 func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
@@ -76,7 +75,7 @@ func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
 	if _, pErr := iam.NewPolicy(ctx, fmt.Sprintf("scaleway-policy-%s", name), &iam.PolicyArgs{
 		// Like the application's (IAM names are limited to 64 characters).
 		Name:           pulumi.String(name),
-		Description:    pulumi.Sprintf("Backups of %s: objects in the project of %s", host, config.BackupBucketID),
+		Description:    pulumi.String(fmt.Sprintf("Backups of %s: object storage in the project", host)),
 		OrganizationId: pulumi.String(config.ScalewayOrganizationID),
 		ApplicationId:  app.ID(),
 		Rules: iam.PolicyRuleArray{
@@ -89,7 +88,6 @@ func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
 		return nil, pErr
 	}
 
-	// The password helper adds no type prefix; the host name is unique within the stack.
 	password, rErr := random.CreatePassword(
 		ctx,
 		fmt.Sprintf("password-restic-%s-%s", host, config.Environment),
@@ -99,7 +97,7 @@ func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
 		return nil, rErr
 	}
 
-	// Secret: the API key's secret key is.
+	// Secret, as the API key's secret key is.
 	env := pulumi.Sprintf(
 		"AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nAWS_DEFAULT_REGION=%s\n",
 		key.AccessKey, key.SecretKey, config.ScalewayRegion,

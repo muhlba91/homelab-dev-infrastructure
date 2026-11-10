@@ -89,5 +89,4 @@ mesh (NetBird/Tailscale reach the site LANs) or through the Proxmox host as a ju
 
 5. Register the GitHub machine key and validate the host: [install.md](install.md), [validation.md](validation.md).
 
-A **reinstall** is the same without the `mkfs` step: everything on `/data` (homes, workspaces, Coder's database) is
-kept, the secrets are delivered again.
+A reinstall skips the `mkfs` step: [install.md](install.md#reinstall).

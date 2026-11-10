@@ -1,7 +1,7 @@
 # Flake checks (`nix flake check`, ./host check), offline and without capabilities, with the
 # tools of the checking system (the configurations are only evaluated, never built):
 #   lint          nixfmt (same as `nix fmt`), deadnix (unused code), statix (statix.toml),
-#                 shellcheck (host, nx, secrets-sync.sh)
+#                 shellcheck (host, nx, secrets-sync.sh, the template's sync.sh)
 #   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check would build
 #                 every system: the profile paths are store paths of the hosts)
 #   host-<name>   the host evaluates; its nftables ruleset passes `nft --check` inside a
@@ -87,7 +87,7 @@ in
         echo "ok   deadnix"
         statix check .
         echo "ok   statix"
-        shellcheck host nx secrets-sync.sh
+        shellcheck host nx secrets-sync.sh coder/templates/local-dir/sync.sh
         echo "ok   shellcheck"
         touch $out
       '';

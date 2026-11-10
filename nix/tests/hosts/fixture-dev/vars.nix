@@ -1,4 +1,5 @@
-# Fixture: a dev host with everything on (IPv6, pinned host key, GitHub machine key, Docker with open ports, Coder with backups, Vault Agent).
+# Fixture: everything on (IPv6, pinned host key, machine key, Docker with open ports, Coder with
+# backups and a proxied URL, Vault Agent).
 # Evaluation only (meta.deployable = false); the keys are throw-away public keys.
 {
   dev = {

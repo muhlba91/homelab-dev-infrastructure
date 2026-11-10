@@ -62,7 +62,6 @@ let
   cidr4 = types.strMatching "${ip4Re}/(3[0-2]|[12]?[0-9])";
   cidr6 = checked6 "${ip6Re}/(12[0-8]|1[01][0-9]|[1-9]?[0-9])" "IPv6 address with prefix length";
   mac = types.strMatching "([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}";
-  mtu = types.ints.between 1280 9000;
 in
 {
   inherit
@@ -78,6 +77,5 @@ in
     cidr4
     cidr6
     mac
-    mtu
     ;
 }

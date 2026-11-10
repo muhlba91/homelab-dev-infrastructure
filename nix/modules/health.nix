@@ -1,10 +1,6 @@
-# `dev-health` (./host health, after every deploy): no unit has failed (system and the user's
-# user manager), the user manager has the user's current groups (Q32: it keeps the groups it
-# started with and a deploy never restarts it, D56), the data disk is mounted and below 80% (a
-# warning above), Coder answers (hosts with Coder), the Vault Agent has a token (a failed lookup
-# is a warning: Vault may be unreachable), the user's rootless Docker runs (hosts with Docker); a
-# failed backup is a failed unit; a pending reboot (the booted kernel, initrd or modules are not
-# the current system's) is a warning. Exits 1 on a failure.
+# `dev-health` (./host health, after every deploy). FAIL (exit 1): failed units, the user manager
+# lacking one of the user's groups (a deploy never restarts it), /data missing, Coder, Docker or the
+# Vault token down. warn: failed user units, /data >= 80%, Vault unreachable, pending reboot.
 {
   config,
   lib,
@@ -36,8 +32,8 @@ in
         if [ -z "$failed" ]; then echo "ok   failed units: 0"; else echo "$failed"; echo "FAIL failed units"; rc=1; fi
         ufailed=$(systemctl --machine=${cfg.user.name}@.host --user --failed --no-legend --plain 2>/dev/null || true)
         if [ -z "$ufailed" ]; then echo "ok   failed user units (${cfg.user.name}): 0"; else echo "$ufailed"; echo "warn failed user units (${cfg.user.name})"; fi
-        # Q32: the user manager (linger) keeps the groups it started with; a group added later
-        # (e.g. vault-token) is missing in every workspace and user service until it restarts.
+        # The user manager keeps the groups it started with: a group added later (vault-token) is
+        # missing in workspaces and user services until it restarts.
         upid=$(systemctl show --property=MainPID --value "user@${toString cfg.user.uid}.service" 2>/dev/null || true)
         if [ -z "$upid" ] || [ "$upid" = 0 ]; then
           echo "warn user manager (${cfg.user.name}): not running"

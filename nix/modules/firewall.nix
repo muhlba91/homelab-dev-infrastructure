@@ -1,6 +1,5 @@
-# Firewall (nftables, NixOS firewall): default deny inbound; SSH (and Coder, when enabled, and
-# the ports opened for Docker containers) only from the trusted networks. Outbound is open. The site router filters first; this is the second
-# layer.
+# Default-deny inbound (nftables): SSH, Coder and docker.trustedPorts only from the trusted
+# networks; outbound open. The site router is the first layer, this the second.
 {
   config,
   lib,
@@ -22,7 +21,6 @@ in
   networking.nftables.enable = true;
   networking.firewall = {
     enable = true;
-    allowPing = true;
     extraInputRules =
       lib.optionalString (cfg.trusted.v4 != [ ]) (rule "ip" cfg.trusted.v4)
       + lib.optionalString (cfg.trusted.v6 != [ ]) (rule "ip6" cfg.trusted.v6);

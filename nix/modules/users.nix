@@ -1,7 +1,6 @@
-# The host's user (§5.3, §5.6 of the plan): pinned uid and subordinate id ranges (files on /data
-# keep their owner across reinstalls), home on the data disk, linger (user services run without
-# a login), SSH keys only, no sudo, no docker group. git signs every commit with the GitHub
-# machine key (secret `github-ssh-key`, readable only by the user).
+# The host's user: pinned uid and subuid/subgid ranges (files on /data keep their owner across
+# reinstalls), home on the data disk, linger, SSH keys only, no sudo. git authenticates and signs
+# with the GitHub machine key (secret `github-ssh-key`).
 {
   config,
   lib,

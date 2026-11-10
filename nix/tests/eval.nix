@@ -405,7 +405,7 @@ lib.runTests {
     };
   };
 
-  # fnox (Q31): the dev profile and the managed global config, in shells and the user manager.
+  # fnox: the dev profile and the managed global config, in shells and the user manager.
   testFnox = {
     expr =
       let

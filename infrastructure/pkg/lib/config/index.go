@@ -19,12 +19,17 @@ const (
 	sshKeysDir = "./assets/ssh"
 )
 
+const (
+	// GlobalName is the prefix of the resource names and the bucket path.
+	GlobalName = "dev-infrastructure"
+	// BackupPath is the folder of this project in the backup bucket.
+	BackupPath = "dev"
+)
+
 //nolint:gochecknoglobals // global configuration is acceptable here
 var (
 	// Environment is the stack name (e.g. prod).
 	Environment string
-	// GlobalName is the prefix of the resource names and the bucket path.
-	GlobalName = "dev-infrastructure"
 	// BucketPath is the path within the buckets for this project.
 	BucketPath string
 	// BucketID is the ID of the main storage bucket.
@@ -39,9 +44,6 @@ var (
 	// ScalewayRegion is the Scaleway region of the buckets (SCW_DEFAULT_REGION): the S3 endpoint.
 	ScalewayRegion string
 )
-
-// BackupPath is the folder of this project in the backup bucket.
-const BackupPath = "dev"
 
 // LoadConfig loads the configuration for the given Pulumi context: the host configurations and the static public
 // SSH keys (the same for every host: the deploy user's and the host user's).

@@ -2,7 +2,7 @@
   description = "NixOS dev hosts: one module set, one generated vars file per host, deployed with deploy-rs";
 
   inputs = {
-    # Stable release (supported until 2026-12-31); Renovate proposes the next one.
+    # Stable release; Renovate proposes the next one.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     # Single packages that must be newer than the release (an overlay per package; see the
@@ -108,10 +108,6 @@
           overlays = [
             deploy-rs.overlays.default
             (_: prev: {
-              # Single packages that must be newer than the release (an overlay per package; see the
-              # modules using `pkgsUnstable`). Updated with flake.lock.
-              nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-
               deploy-rs = {
                 inherit (nixpkgs.legacyPackages.x86_64-linux) deploy-rs;
                 inherit (prev.deploy-rs) lib;
@@ -196,6 +192,7 @@
               ./host
               ./nx
               ./secrets-sync.sh
+              ./coder/templates/local-dir/sync.sh
             ];
           };
         }

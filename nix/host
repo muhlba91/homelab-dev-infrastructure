@@ -13,7 +13,7 @@
 #   ./host deploy <host> [deploy args]   push secrets, run the host's backups, then deploy-rs (magic
 #                                        rollback); without args, skipped if the host already runs
 #                                        this system. SKIP_BACKUP=1: no backup first
-#   ./host health <host>                 failed units, data disk usage, pending reboot (warning)
+#   ./host health <host>                 dev-health (modules/health.nix)
 #   ./host install <host> <ip>           first install / reinstall: nixos-anywhere (+ secrets);
 #                                        wipes the OS disk, never the data disk (label `data`)
 #   ./host ssh <host> [command]          SSH as `deploy` to the host's mgmt address with its key
@@ -48,7 +48,7 @@ fi
 ev() {
   err=$(mktemp)
   # shellcheck disable=SC2086
-  ./nx -r nix eval $OVERRIDE "$@" 2>"$err" || { cat "$err" >&2; exit 1; }
+  ./nx -r nix eval $OVERRIDE "$@" 2>"$err" || { cat "$err" >&2; rm -f "$err"; exit 1; }
   rm -f "$err"
 }
 # A deployable host for the SSH commands: sets MGMT and hands its keys and pinned host key

@@ -1,5 +1,4 @@
-# Vars schema: the services on the host (Docker: Phase 2, Coder and its backups: Phase 3, the
-# Vault Agent: Phase 4).
+# Vars schema: the services (Docker, Coder and its backup, the Vault Agent).
 { lib, ... }:
 let
   inherit (lib) types;

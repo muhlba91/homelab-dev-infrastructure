@@ -1,8 +1,6 @@
-# Storage (§5.4 of the plan): the data disk, formatted once by hand (ext4, label
-# dev.storage.dataLabel) and never touched by an install, is mounted at dev.storage.dataDir in the
-# initrd (neededForBoot): before the activation creates homes and applies ownership. Without the
-# disk the host does not boot, deliberately: nothing writes into an empty /data on the OS disk.
-# The OS disk (disko, hardware/<profile>.nix) is wiped by every install.
+# The data disk (formatted once by hand, label dev.storage.dataLabel, never touched by an install),
+# mounted in the initrd so activation can create homes on it. Without it the host does not boot, by
+# design: nothing may write into an empty /data on the OS disk.
 { config, ... }:
 let
   s = config.dev.storage;

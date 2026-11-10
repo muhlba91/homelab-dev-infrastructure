@@ -1,4 +1,4 @@
-# Vars schema: the host's (human) user and the storage layout its home lives on.
+# Vars schema: the host's user and the storage its home lives on.
 { lib, ... }:
 let
   inherit (lib) types;

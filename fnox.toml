@@ -1,14 +1,7 @@
-# Secrets for CI and local runs, read from Vault with fnox (https://fnox.jdx.dev)
-#
-# - CI: the default profile (the host deploy job sets FNOX_PROFILE=host-deploy); the Vault token comes from the GitHub OIDC login
-#   (hashicorp/vault-action, exportToken)
-# - developer machines: FNOX_PROFILE=dev adds the Pulumi token and the local Google Cloud credentials (impersonating
-#   the CI service account) from the machine's global fnox config (provider `dev-infrastructure`,
-#   GCP_SOURCE_CREDENTIALS). Pulumi's Vault provider uses the machine's own token (Mac: admin, VM: the host's AppRole
-#   token): this repository's policy is never minted (local secrets plan D57).
-#
-# run: cd infrastructure && fnox exec -- pulumi preview --stack prod
-#      on a dev VM: fnox exec -- mise run up:vm --stack prod
+# Secrets from Vault via fnox. CI: the default profile, the Vault token from the GitHub OIDC login
+# (FNOX_PROFILE=host-deploy adds the Tailscale client). Developer machines: FNOX_PROFILE=dev adds the Pulumi
+# token and Google credentials impersonating the CI service account, from the machine's global fnox config.
+# Run: cd infrastructure && fnox exec -- pulumi preview --stack prod
 
 if_missing = "error"
 

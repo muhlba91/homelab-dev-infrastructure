@@ -42,7 +42,7 @@
             "automerge": false
         },
         {
-            "description": "flake.lock (lock file maintenance) changes the dev VM's system: merging it is the moment the VM changes, so never automerge (D17)",
+            "description": "flake.lock (lock file maintenance) changes the dev VM's system: merging it is the moment the VM changes, so never automerge",
             "matchManagers": [
                 "nix"
             ],

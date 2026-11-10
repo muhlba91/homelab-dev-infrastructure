@@ -1,15 +1,9 @@
-# Secrets are FILES delivered outside Nix (./host push-secrets, or
-# nixos-anywhere --extra-files on first install) into /var/lib/secrets.
-# Nix only declares their names, owners and modes, never their values (the store is
-# world-readable, and vars.nix is copied to the host). Three mechanisms:
-#  1. activation guard: every activation (and boot) checks that each declared file
-#     exists and is non-empty, and applies owner/mode. A missing secret fails the
-#     activation, so deploy-rs rolls back instead of leaving a host with a broken
-#     service. (At boot a failure is only logged: the host must still come up.)
-#  2. a path unit per secret re-applies owner/mode and runs the secret's `reload`
-#     command when the file changes (rotation by a plain push; ./host writes only
-#     changed files and removes the ones no longer delivered).
-#  3. the directory is root-only for listing (0711); file modes protect the content.
+# Secrets are files delivered outside Nix (./host push-secrets, or --extra-files on install) into
+# /var/lib/secrets; Nix declares only names, owners and modes (the store is world-readable).
+#  1. Every activation checks each file exists and is non-empty and applies owner/mode; a missing
+#     secret fails the activation (deploy-rs rolls back); at boot it is only logged.
+#  2. A path unit per secret re-applies owner/mode and runs its `reload` when the file changes.
+#  3. The directory is not listable (0711); file modes protect the content.
 {
   config,
   lib,

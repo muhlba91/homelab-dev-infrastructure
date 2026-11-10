@@ -1,11 +1,9 @@
-# Rootless Docker (Phase 2 of the plan): a dev tool for the workspaces (compose, testcontainers,
-# image builds), not used by Coder. The daemon is a systemd user unit of the host's user (linger
-# starts it at boot), its data in ~/.local/share/docker on the data disk. Nobody is in the docker
-# group, so no container gets more than the user. A deploy never restarts the daemon (its
-# containers would stop): a new version runs after `systemctl --user restart docker` or a reboot.
+# Rootless Docker for the host's user (a dev tool, not used by Coder): a systemd user unit started
+# by linger, data on the data disk. Nobody is in the docker group.
 {
   config,
   lib,
+  dlib,
   ...
 }:
 let
@@ -32,17 +30,17 @@ lib.mkIf cfg.docker.enable {
     # The module's unit runs for every user manager (`deploy` included, which has no subordinate
     # ids): only the host's user.
     unitConfig.ConditionUser = lib.mkForce u.name;
-    # switch-to-configuration restarts changed user units like system ones: a deploy that
-    # changes Docker would stop every container. A new version starts with the next
-    # `systemctl --user restart docker` or reboot.
+    # A deploy restarting the daemon would stop every container: a new version runs after
+    # `systemctl --user restart docker` or a reboot.
     restartIfChanged = false;
   };
 
   # The user manager (workspace agents, user services) gets DOCKER_HOST as well; testcontainers'
   # reaper mounts the socket by this path. The other users' managers have no access to it.
-  systemd.user.extraConfig = ''
-    DefaultEnvironment="DOCKER_HOST=unix://${socket}" "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=${socket}"
-  '';
+  systemd.user.extraConfig = dlib.userEnv {
+    DOCKER_HOST = "unix://${socket}";
+    TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = socket;
+  };
   environment.variables.TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = socket;
 
   # Unused images, containers, networks and build cache older than two weeks; volumes are kept.

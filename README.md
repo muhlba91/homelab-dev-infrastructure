@@ -3,210 +3,135 @@
 [![Build status](https://img.shields.io/github/actions/workflow/status/muhlba91/homelab-dev-infrastructure/pipeline.yml?style=for-the-badge)](https://github.com/muhlba91/homelab-dev-infrastructure/actions/workflows/pipeline.yml)
 [![License](https://img.shields.io/github/license/muhlba91/homelab-dev-infrastructure?style=for-the-badge)](LICENSE.md)
 
-This repository contains the automation for the [NixOS](https://nixos.org) dev hosts: central development VMs for
-remote workspaces ([Coder](https://coder.com)) and long-running agents, using [Pulumi](http://pulumi.com). It follows
-the layout and tooling of [homelab-router-infrastructure](https://github.com/muhlba91/homelab-router-infrastructure).
-
-For each enabled host, it creates the deploy SSH key, the host's SSH host key, the GitHub machine key (authentication
-and commit signing) and, if the host runs Coder, Coder's admin password and the backup credentials, if it runs the Vault Agent, the AppRole secret ID, and renders the host's `vars.nix` which the
-NixOS configuration consumes.
-
-The plan and the decision log: [plan.md](plan.md).
+[NixOS](https://nixos.org) development VMs for remote workspaces ([Coder](https://coder.com)) and long-running
+agents. Built like [homelab-router-infrastructure](https://github.com/muhlba91/homelab-router-infrastructure): a
+[Pulumi](https://pulumi.com) program generates each host's keys, secrets and `vars.nix`; a NixOS flake describes the
+machine; `./host` installs and deploys it.
 
 ---
 
 ## Repository Layout
 
-- [infrastructure/](infrastructure/): the Pulumi program (Go) that creates the per-host resources and renders the host
-  data
-- [nix/](nix/): the NixOS configuration (a flake): `modules/` (one module set for every host; the vars schema in
-  `modules/options/`), `hardware/` (hardware profiles), `coder/templates/` (Coder templates shipped with the system),
-  `tests/` (checks, eval tests, fixtures), `host`, `nx` and its image (`Containerfile`)
-- [docs/](docs/): [Proxmox](docs/proxmox.md) (VM, sizing, first install), [install and operations](docs/install.md)
-  (GitHub key, reinstall, growing the data disk), [validation](docs/validation.md), [VS Code](docs/vscode.md)
-
----
+- [infrastructure/](infrastructure/): the Pulumi program (Go); host files in `assets/hosts/`
+- [nix/](nix/): the flake: `modules/` (vars schema in `modules/options/`), `hardware/`, `coder/templates/`,
+  `tests/`, and the `host` and `nx` scripts
+- [docs/](docs/): [Proxmox and first install](docs/proxmox.md), [operations](docs/install.md),
+  [validation](docs/validation.md), [VS Code](docs/vscode.md)
 
 ## Requirements
 
-- [mise](https://mise.jdx.dev) for Go, golangci-lint, Pulumi, Terraform and tflint (the Coder templates:
-  `mise run lint:templates`)
-- [podman](https://podman.io) for the NixOS configuration in [nix/](nix/) (or a local [Nix](https://nixos.org/download/))
+- [mise](https://mise.jdx.dev) (Go, Pulumi, Terraform, fnox, …)
+- [podman](https://podman.io) or a local [Nix](https://nixos.org/download/) for `nix/`
 
 ---
 
-## Creating the Infrastructure
+## Pulumi
 
-The stack `prod` uses the Pulumi Cloud backend and Google Cloud KMS (`tuxnet-385112`) as its secrets provider:
+The stack `prod` uses Pulumi Cloud and Cloud KMS as its secrets provider:
 
 ```bash
 cd infrastructure
 pulumi stack init prod --secrets-provider \
   gcpkms://projects/tuxnet-385112/locations/europe/keyRings/infrastructure-encryption/cryptoKeys/infrastructure-encryption
-pulumi up
 ```
 
-`pulumi up` writes the host data to `infrastructure/outputs/` (and the bucket):
+Per enabled host, `pulumi up` creates the deploy SSH key, the SSH host key and the GitHub machine key; with Coder the
+admin password and the restic credentials; with the Vault Agent an AppRole secret ID. It writes them and the host's
+`vars.nix` to `infrastructure/outputs/` and the bucket. Stack output `hosts.<host>`: `keys.{deploy,host,github}.public`
+and `coder.admin` (secret).
 
-| File | Content |
-| --- | --- |
-| `outputs/hosts/<host>/vars.nix` | the host data (no secrets; the flake's `hosts` input) |
-| `outputs/keys/<host>/deploy-key` | private SSH key of the `deploy` user (stays on the workstation / bucket) |
-| `outputs/keys/<host>/secrets/ssh-host-key` | the host's pinned SSH host key |
-| `outputs/keys/<host>/secrets/github-ssh-key` | the GitHub machine key (owned by the host's user) |
-| `outputs/keys/<host>/secrets/coder-admin-password` | Coder's first (admin) user (hosts with Coder) |
-| `outputs/keys/<host>/secrets/restic-password` | the password of the host's restic repositories (hosts with Coder) |
-| `outputs/keys/<host>/secrets/restic-s3` | the S3 keys of the host's backup application, an environment file (hosts with Coder) |
-| `outputs/keys/<host>/secrets/vault-role-id`, `vault-secret-id` | the Vault Agent's AppRole login (hosts with `vault.enabled`) |
-
-Stack output `hosts.<host>`:
-
-| Key | Content |
-| --- | --- |
-| `keys.deploy.public`, `keys.host.public` | the public deploy key and host key (plain) |
-| `keys.github.public` | the public GitHub machine key (plain; registered on GitHub by hand: [install.md](docs/install.md)) |
-| `coder.admin` | Coder's first user: `username`, `email`, `password` (secret; hosts with Coder) |
-
----
-
-## Environment Variables
+### Credentials
 
 | Variable | Purpose |
 | --- | --- |
-| `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_REGION` | the Scaleway bucket the host data is uploaded to |
-| `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID` | required: the organization and project of the backup applications (the buckets' project; the provider's own `SCW_DEFAULT_*` are not used) |
-| `GOOGLE_APPLICATION_CREDENTIALS` (or `gcloud auth application-default login`) | the secrets provider (Cloud KMS) |
-| `VAULT_TOKEN` | Vault (address: stack config `vault:address`): reads the hosts' AppRole role IDs and manages their secret IDs (CI: the repository's JWT role) |
+| `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_REGION` | the bucket for the host data |
+| `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID` | the project of the backup buckets and IAM applications |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Cloud KMS |
+| `VAULT_TOKEN` | reads the AppRole role IDs, manages the secret IDs |
 
-They come from Vault through [fnox](https://fnox.jdx.dev) (`fnox.toml`, installed by mise), in CI and locally:
-
-- **CI:** `hashicorp/vault-action` only logs in (GitHub OIDC, `exportToken`: `VAULT_TOKEN` is the repository's JWT
-  role); fnox reads the values listed in `fnox.toml`. The host deploy job adds the Tailscale OAuth client
-  (`FNOX_PROFILE=host-deploy`); the S3 copies map the Scaleway keys to `AWS_*` in their step.
-- **Locally** (`FNOX_PROFILE=dev`, set on the Mac by the dotfiles and on the dev VMs by `fnox.nix`): the Pulumi token
-  (`dev-infrastructure/pulumi-muhlba91`) and Google Cloud credentials impersonating the CI service account, built
-  from the machine's own key (`GCP_SOURCE_CREDENTIALS` in the global fnox config). `VAULT_TOKEN` is the machine's own
-  token through the Vault CLI's token helper (Mac: admin; dev VM: the host's AppRole token, which can read the role
-  IDs but not create secret IDs, so `up` on a VM runs `mise run up:vm`).
+[fnox](https://fnox.jdx.dev) loads them from Vault (`fnox.toml`). CI logs in to Vault through GitHub OIDC. Locally
+(`FNOX_PROFILE=dev`) the Vault token is the machine's own and Google credentials impersonate the CI service account:
 
 ```bash
-cd infrastructure
 fnox exec -- pulumi preview --stack prod
-fnox exec -- mise run up:vm --stack prod   # on a dev VM
+fnox exec -- mise run up:vm --stack prod   # on a dev VM: leaves the secret IDs to CI
 ```
 
-`fnox.local.toml` (git-ignored) can override values for experiments.
+### Configuration
+
+- `vault:address`: Vault. The AppRole roles `dev-infrastructure-<host>` come from github-infrastructure; this program
+  creates their secret IDs (rotated every 90 days).
+- `homelab-dev-infrastructure:bucketId`: the host data, below `dev-infrastructure/<stack>/`.
+- `homelab-dev-infrastructure:backupBucketId`: the restic repositories, below `dev/<host>/<application>/`.
+
+## Adding a host
+
+1. Copy [assets/templates/host.yml](infrastructure/assets/templates/host.yml) (every field documented) to
+   `infrastructure/assets/hosts/<order>-<name>.yml` and set `enabled: true`. The order is the deploy order (`0xx`
+   test, `1xx` OVH, `2xx` Hetzner, `9xx` physical); unknown keys are errors.
+2. Merge: CI runs `pulumi up`.
+3. Create and install the VM: [proxmox.md](docs/proxmox.md).
+4. Register the GitHub machine key: [install.md](docs/install.md#github-machine-key).
+5. Validate: [validation.md](docs/validation.md).
+
+The public keys in [infrastructure/assets/ssh/](infrastructure/assets/ssh/) may log in as `deploy` and as the user.
 
 ---
 
-## Configuration
+## Hosts
 
-### Vault
-
-`vault:address`: the Vault provider's address. The AppRole roles `dev-infrastructure-<host>` and their policies are
-created by github-infrastructure (the repository's `accessPermissions.vault.appRoles`); this program reads the role ID
-and creates a secret ID (rotated every 90 days).
-
-### Bucket
-
-`homelab-dev-infrastructure:bucketId`: the Scaleway bucket; the files go below `dev-infrastructure/<stack>/`.
-
-`homelab-dev-infrastructure:backupBucketId`: the backup bucket; the restic repositories go below
-`dev/<host>/<application>/`. Each host with Coder gets a Scaleway IAM application with object storage access in the
-project `SCW_PROJECT_ID`, which holds the bucket (Scaleway IAM cannot limit it to a path).
-
-### Host YAML
-
-One file per host in [infrastructure/assets/hosts/](infrastructure/assets/hosts/), named
-`[<order>-]<name>.yml` (the order decides the deploy order; categories as in the router repo: `0xx` test systems,
-`1xx` OVH, `2xx` Hetzner, `9xx` physical sites). Every field is documented in
-[infrastructure/assets/templates/host.yml](infrastructure/assets/templates/host.yml). A host is disabled unless its
-file says `enabled: true`; unknown keys are errors.
-
-### SSH Keys
-
-The static public keys in [infrastructure/assets/ssh/](infrastructure/assets/ssh/) (`*.pub`) may log in as `deploy`
-(plus the host's generated deploy key) and as the host's user.
-
----
-
-## NixOS Hosts
-
-From `nix/` (everything runs through `./nx`, in podman on the Mac):
+From `nix/` (in podman unless Nix is installed; the full list is in the header of `nix/host`):
 
 ```bash
-./host hosts                    # list hosts (in deploy order)
 ./host check                    # flake checks: lint, deploy schema, eval tests, every host
-./host install <host> <ip>      # first install / reinstall (wipes the OS disk, keeps /data)
-./host deploy <host>            # push secrets, back up, then deploy-rs (magic rollback)
-./host health <host>            # failed units, data disk usage, pending reboot
+./host install <host> <ip>      # first install or reinstall (wipes the OS disk, keeps /data)
+./host deploy <host>            # push secrets, back up Coder, deploy-rs with magic rollback
+./host push-secrets <host>      # deliver rotated secrets only
+./host health <host>            # dev-health
 ./host ssh <host> [command]     # SSH as deploy
 ```
 
-Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fixtures in `nix/tests/hosts/`.
-
-On a dev VM, `mise run up:vm` runs `pulumi up` without the AppRole secret IDs (the host's Vault token can read the
-role IDs but never create a secret ID): a due rotation and a new Vault host's first secret ID wait for CI.
+Without `infrastructure/outputs/` (or `OUTPUTS=<dir>`), the commands use the fixtures in `nix/tests/hosts/`. Hosts
+with `deploy.automated: true` are deployed by CI after every `pulumi up` on `main`.
 
 ### What runs on a host
 
-- **Storage:** the OS disk (disko, wiped by every install) and the data disk at `/data` (homes, Coder, PostgreSQL;
-  never touched by an install, grows with the disk).
-- **The user:** pinned uid, home on `/data`, linger, SSH keys only, no sudo; git signs every commit with the GitHub
-  machine key.
-- **Development environment:** nix-ld (prebuilt runtimes, the VS Code Server), envfs, mise (from nixos-unstable: the
-  repositories require a newer version than the release ships), direnv, `gh`, `vault` and the usual CLI tools.
-- **Docker** (`docker.enabled`): rootless, a daemon per user as a systemd user unit (data in the home on `/data`);
-  nobody is in the `docker` group. Published ports bind to `127.0.0.1` unless a port names an address, and the
-  firewall blocks the rest anyway; `docker.trustedPorts` (e.g. `8000-8999`) opens ports to the trusted networks
-  for containers published on the host's address (`-p 0.0.0.0:8080:80`). `DOCKER_HOST` is set for shells and user units (testcontainers works). A deploy
-  never restarts the daemon (its containers would stop): `systemctl --user restart docker` picks up a new version.
-  Unused images and build cache older than two weeks are pruned weekly (volumes are kept).
-- **Coder** (`coder.enabled`): runs as the user with the built-in provisioner; workspaces are directories in
-  `~/workspaces` (or `~/workspaces/<group>`, an optional parameter) with a `coder agent` user unit (`nix/coder/templates/local-dir`). A workspace clones its repository
-  once, then fetches and fast-forwards a clean branch with an upstream and runs `mise install` at every start and
-  hourly (`sync.sh`); local changes and other branches are never touched.
-- **Backups** (hosts with Coder): Coder's database is dumped nightly to `/data/backup/coder` and backed up with restic
-  to `dev/<host>/coder/` in the backup bucket (the last 3 snapshots plus one each from the previous two weeks, pruned after every backup). `./host deploy` runs the backup before every
-  deploy that changes the system (`SKIP_BACKUP=1` skips it). Restore: [install.md](docs/install.md#restoring-coders-database).
-- **Vault Agent** (`vault.enabled`): its own user `vault-agent` logs in with the host's AppRole role and keeps a
-  short-lived token (read-only on the KV mounts) in `/run/vault-agent/token`, readable by the group `vault-token` (the
-  user). `VAULT_ADDR` and a token helper are set for shells and user units: `vault`, fnox (`vault print token`) and
-  Pulumi's Vault provider (`TERRAFORM_VAULT_SKIP_CHILD_TOKEN`) find the token; `vault login` cannot replace it.
-- **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` (the repositories' local profile) and a global config in
-  `/etc/fnox` (`FNOX_CONFIG_DIR`) for shells and user units: the Vault provider for the developer machines' mount
-  `dev-infrastructure` and the host's GCP key (`GCP_SOURCE_CREDENTIALS`, `dev` profile only, never in the
-  environment) as the source of the repositories' impersonation file. fnox itself comes from each repository's
-  `mise.toml`.
-- `dev-health` (`./host health`): failed units (system and the user's, a failed backup included), data disk usage,
-  Coder answering, the Vault token, Docker running, pending reboot.
+- **Storage:** the OS disk (wiped by every install) and `/data` (homes, Coder, PostgreSQL; kept, grows with the disk).
+- **User:** pinned uid, home on `/data`, linger, SSH keys only, no sudo; commits signed with the GitHub machine key.
+- **Dev environment:** nix-ld, envfs, mise, direnv, `gh`, `vault`.
+- **Docker** (`docker.enabled`): rootless, one daemon per user; ports bind to `127.0.0.1` unless published on the
+  host's address and listed in `docker.trustedPorts`.
+- **Coder** (`coder.enabled`): runs as the user; workspaces are directories in `~/workspaces` that sync their
+  repository at start and hourly. With an https `coder.accessUrl` it sits behind the home cluster's gateway
+  (currently `https://coder.dev.home.muehlbachler.io`, apps under `coder.wildcardAccessUrl`). Nightly restic backup of
+  its database; restore: [install.md](docs/install.md#restoring-coders-database).
+- **Vault Agent** (`vault.enabled`): a short-lived host token for the user, used by `vault`, fnox and Pulumi.
+- **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` and a global config in `/etc/fnox` with the host's GCP key.
+- **`dev-health`:** failed units, the user manager's groups, `/data` usage, Coder, the Vault token, Docker, pending
+  reboot.
 
 ### Ports
 
 | Port | From | Service |
 | --- | --- | --- |
-| 22/tcp | trusted networks | SSH (`deploy`, the host's user) |
-| 3000/tcp | trusted networks | Coder (hosts with Coder) |
-| `docker.trustedPorts` | trusted networks | containers published on the host's address (hosts with Docker) |
+| 22/tcp | trusted networks | SSH |
+| 3000/tcp | trusted networks (incl. the cluster gateway) | Coder |
+| `docker.trustedPorts` | trusted networks | containers |
 
 ---
 
 ## Testing
 
 ```bash
-cd infrastructure && make test                              # renders every host file under mocks
-RENDER_DIR=/tmp/render make test && OUTPUTS=/tmp/render/outputs ../nix/host check   # the rendered hosts in Nix
-cd nix && ./host check                                      # the fixtures
+make -C infrastructure lint test   # golangci-lint; Go tests (render every host file under mocks)
+mise run lint:templates            # Coder templates
+nix/host check                     # Nix checks on the fixtures
+RENDER_DIR=/tmp/render make -C infrastructure test && OUTPUTS=/tmp/render/outputs nix/host check   # rendered hosts
 ```
 
----
+## Continuous Integration
 
-## Continuous Integration and Automations
-
-- Pull requests: conform, YAMLLint, Go lint and tests, the Coder templates (`terraform fmt`, `validate` and
-  `plan` failing on warnings, tflint), the Nix checks, `pulumi preview` with a `vars.nix` diff, the
-  Nix checks of the rendered and the previewed hosts, a build of the host system.
-- `main`: preview, Nix checks, `pulumi up`, then `./host deploy` and `./host health` for every host with
-  `deploy.automated: true`.
-- Renovate: Go modules, actions, the `nx` image and mise tools are automerged; `flake.lock` updates and NixOS
-  releases are never automerged (merging them is the moment a host changes).
+- Pull requests: lint, tests, Coder templates, Nix checks, `pulumi preview` with a `vars.nix` diff, Nix checks and a
+  build of the previewed hosts.
+- `main`: `pulumi up`, then `./host deploy` and `./host health` for hosts with `deploy.automated: true`.
+- Renovate automerges everything except `flake.lock` and NixOS releases (merging those changes the hosts).

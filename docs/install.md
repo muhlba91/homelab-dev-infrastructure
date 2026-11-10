@@ -1,4 +1,4 @@
-# Install and operations
+# Operations
 
 ## GitHub machine key
 

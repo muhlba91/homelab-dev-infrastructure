@@ -1,6 +1,5 @@
-// Package vault creates a host's Vault AppRole login: the role (`dev-infrastructure-<host>`) and its policy are
-// created by github-infrastructure (this repository's CI may only read the role ID and manage secret IDs); here the
-// role ID is read and a secret ID is created for the host's Vault Agent.
+// Package vault creates a host's Vault AppRole login: it reads the role ID and creates a secret ID. The role
+// (dev-infrastructure-<host>) and its policy are managed by github-infrastructure.
 package vault
 
 import (
@@ -29,17 +28,17 @@ type Credentials struct {
 	SecretID pulumi.StringOutput
 }
 
-// RoleName returns the name of a host's AppRole role and policy: <global name>-<host>.
+// roleName returns the name of a host's AppRole role and policy: <global name>-<host>.
 // host: The host name.
-func RoleName(host string) string {
+func roleName(host string) string {
 	return fmt.Sprintf("%s-%s", config.GlobalName, host)
 }
 
-// Create reads the role ID of a host's AppRole role and creates a secret ID for it (rotated every 90 days).
+// Create reads the role ID of a host's AppRole role and creates a rotating secret ID for it.
 // ctx: The Pulumi context.
 // host: The host name.
 func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
-	role := RoleName(host)
+	role := roleName(host)
 	b := backend
 
 	roleID := vaultApprole.GetAuthBackendRoleIdOutput(ctx, vaultApprole.GetAuthBackendRoleIdOutputArgs{
@@ -50,7 +49,7 @@ func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
 	secretID, sErr := approle.CreateSecretID(ctx, config.ResourceName(host), &approle.SecretIDOptions{
 		RoleName: pulumi.String(role),
 		Backend:  &b,
-		Metadata: pulumi.String(fmt.Sprintf(`{"host":"%s"}`, host)),
+		Metadata: pulumi.String(fmt.Sprintf(`{"host":%q}`, host)),
 		Rotation: &rModel.Options{Days: secretIDRotationDays},
 	})
 	if sErr != nil {

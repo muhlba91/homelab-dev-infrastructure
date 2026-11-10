@@ -24,9 +24,8 @@ var fileName = regexp.MustCompile(`^(?:([0-9]+)-)?(.+)$`)
 // hostName matches a valid host name: a hostname label.
 var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
-// ParseHostsFromFiles reads the host configuration files (*.yml, *.yaml) from the specified directory.
-// Other entries (e.g. .gitkeep) are skipped. A file must be named after its host, optionally prefixed with its deploy
-// order ([<order>-]<name>.yml), and every host name must be unique.
+// ParseHostsFromFiles reads the host files (*.yml, *.yaml) of a directory. A file is named after its host,
+// optionally prefixed with its deploy order ([<order>-]<name>.yml); host names are unique.
 // dir: The directory of the host configuration files.
 func ParseHostsFromFiles(dir string) ([]*host.Config, error) {
 	entries, err := os.ReadDir(dir)
@@ -125,15 +124,14 @@ func parseHostFile(path string) (*host.Config, error) {
 	if qErr := checkRequired(&r); qErr != nil {
 		return nil, fmt.Errorf("%s: %w", path, qErr)
 	}
-	if lErr := checkLists(&r); lErr != nil {
+	if lErr := checkValues(&r); lErr != nil {
 		return nil, fmt.Errorf("%s: %w", path, lErr)
 	}
 
 	return &r, nil
 }
 
-// checkRequired rejects a host file without one of the required sections: the template and the stack output read
-// them without a check, so a missing one would fail late (or panic) instead of naming the file.
+// checkRequired rejects a missing required section: the template reads them unchecked.
 // h: The host configuration.
 func checkRequired(h *host.Config) error {
 	switch {
@@ -151,18 +149,15 @@ func checkRequired(h *host.Config) error {
 	return nil
 }
 
-// checkLists rejects empty lists: the template renders them like omitted ones, so the Nix default would apply
-// (`trustedNetworks.v4: []` would open the host to the default networks instead of closing it).
+// checkValues rejects values the template would render wrongly: a missing Vault address, and empty lists, which
+// it omits, so the Nix default would apply (`trustedNetworks.v4: []` would open the host to the default networks).
 // h: The host configuration.
-func checkLists(h *host.Config) error {
+func checkValues(h *host.Config) error {
 	if h.UsesVault() && (h.Vault.Address == nil || *h.Vault.Address == "") {
 		return errors.New("vault.address is required when vault.enabled is true")
 	}
 	if h.Docker != nil && h.Docker.TrustedPorts != nil && len(h.Docker.TrustedPorts) == 0 {
 		return errors.New("docker.trustedPorts must not be empty (omit it for none)")
-	}
-	if h.Network == nil {
-		return nil
 	}
 	if h.Network.Nameservers != nil && len(h.Network.Nameservers) == 0 {
 		return errors.New("network.nameservers must not be empty (omit it for the IPv4 gateway)")

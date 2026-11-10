@@ -6,8 +6,7 @@ mixed. Mac checkouts stay separate and sync through git.
 ## Coder workspaces
 
 With the [Coder extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): log in to the
-host's Coder URL (its `coder.accessUrl`, e.g. `https://coder.dev.home.muehlbachler.io`; without one
-`http://<address>:3000`), then open a workspace from the extension's list. Or without the extension:
+host's Coder URL (`coder.accessUrl`, e.g. `https://coder.dev.home.muehlbachler.io`), then open a workspace from the extension's list. Or without the extension:
 
 ```bash
 coder login https://coder.dev.home.muehlbachler.io
@@ -30,8 +29,5 @@ Host <host>
 "Remote-SSH: Connect to Host…" → `<host>`, then open `~/workspaces/<workspace>` (or any directory). The YubiKey
 authenticates; on the host, git uses the machine key for GitHub and signs every commit.
 
-## On the host
-
-The VS Code Server that Remote-SSH and the Coder extension download is a generic Linux binary: it runs through nix-ld.
-Extensions with native parts (language servers) do as well; if one fails with a missing library, add it to
-`programs.nix-ld.libraries` in `nix/modules/nix-ld.nix`.
+The VS Code Server and extensions with native parts run through nix-ld; a missing library goes into
+`nix/modules/nix-ld.nix`.

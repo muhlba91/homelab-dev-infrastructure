@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 #MISE description="Validate and lint the Coder templates (terraform fmt, validate and plan, tflint)"
 #USAGE arg "[template]..." help="Template directories (default: every nix/coder/templates/*)"
-# Every template: `terraform fmt`, `terraform validate`, then `terraform plan` (offline: Coder's data sources fall
-# back to defaults, provisioners do not run in a plan), both failing on warnings as well: deprecated
-# provider attributes are reported only by the plan (tflint does not load provider schemas). Then
-# tflint. Each template in a temporary copy: no .terraform or lock file lands in the template
-# directory (its store path is what the host pushes).
+# validate and plan fail on warnings: only the (offline) plan reports deprecated provider attributes.
+# Runs on a temporary copy, so no .terraform or lock file lands in the template directory.
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)

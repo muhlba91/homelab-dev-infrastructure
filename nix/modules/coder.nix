@@ -1,9 +1,6 @@
-# Coder (Phase 3 of the plan): the server runs as the host's user with the
-# built-in provisioner, so a template's local actions run as that user (workspaces are directories
-# in ~/workspaces with a `coder agent` user unit, nix/coder/templates/local-dir). PostgreSQL holds its
-# database on the data disk, reached over the socket with peer authentication mapped to the role
-# `coder` (createLocally insists on a user named `coder`). A bootstrap oneshot creates the first
-# user and an admin token; a second oneshot pushes the templates shipped with the system.
+# Coder as the host's user with the built-in provisioner, so a template's local actions run as that
+# user (coder/templates/local-dir). PostgreSQL on the data disk, socket and peer auth mapped to the
+# role `coder`. Oneshots create the first user and an admin token, and push the shipped templates.
 {
   config,
   lib,
@@ -21,7 +18,7 @@ let
   accessUrl =
     if c.accessUrl != null then c.accessUrl else "http://${cfg.mgmt.address}:${toString port}";
   localUrl = "http://127.0.0.1:${toString port}";
-  # Behind a TLS-terminating reverse proxy (Phase 5: the cluster's gateway).
+  # Behind a TLS-terminating reverse proxy (the cluster's gateway).
   proxied = lib.hasPrefix "https://" accessUrl;
   templates = ../coder/templates;
   pgPackage = pkgs.postgresql_17;
@@ -121,9 +118,8 @@ lib.mkIf c.enable {
     '';
   };
 
-  # The first (admin) user and an admin token for the template push. Idempotent: a valid token
-  # ends it; without one it creates the first user if none exists, then logs in with the
-  # password (a credential: the secret stays root-owned) and creates a token.
+  # The first user and an admin token for the template push (idempotent). The password is a
+  # credential, so the secret stays root-owned.
   systemd.services.coder-bootstrap = {
     description = "Create Coder's first user and an admin token";
     after = [ "coder.service" ];
@@ -143,24 +139,28 @@ lib.mkIf c.enable {
       UMask = "0077";
     };
     script = ''
+      set -o pipefail
       url=${localUrl}
       for _ in $(seq 60); do curl -fsS "$url/healthz" >/dev/null 2>&1 && break; sleep 2; done
       if [ -s ${tokenFile} ] && curl -fsS -H "Coder-Session-Token: $(cat ${tokenFile})" "$url/api/v2/users/me" >/dev/null; then
         echo "coder-bootstrap: token valid"
         exit 0
       fi
-      password=$(cat "$CREDENTIALS_DIRECTORY/admin-password")
+      # The password stays out of argv (--rawfile).
+      pw="$CREDENTIALS_DIRECTORY/admin-password"
       if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/api/v2/users/first")" = 404 ]; then
-        jq -n --arg u ${u.name} --arg e '${u.git.email}' --arg n '${u.git.name}' --arg p "$password" \
-          '{username: $u, email: $e, name: $n, password: $p, trial: false}' |
+        jq -n --arg u ${lib.escapeShellArg u.name} --arg e ${lib.escapeShellArg u.git.email} \
+          --arg n ${lib.escapeShellArg u.git.name} --rawfile p "$pw" \
+          '{username: $u, email: $e, name: $n, password: ($p | rtrimstr("\n")), trial: false}' |
           curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/first" >/dev/null
         echo "coder-bootstrap: first user created"
       fi
-      session=$(jq -n --arg e '${u.git.email}' --arg p "$password" '{email: $e, password: $p}' |
-        curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/login" | jq -r .session_token)
+      session=$(jq -n --arg e ${lib.escapeShellArg u.git.email} --rawfile p "$pw" \
+        '{email: $e, password: ($p | rtrimstr("\n"))}' |
+        curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/login" | jq -er .session_token)
       jq -n '{token_name: "bootstrap", lifetime: 0}' |
         curl -fsS -X POST -H 'Content-Type: application/json' -H "Coder-Session-Token: $session" --data @- \
-          "$url/api/v2/users/me/keys/tokens" | jq -r .key > ${tokenFile}.new
+          "$url/api/v2/users/me/keys/tokens" | jq -er .key > ${tokenFile}.new
       mv ${tokenFile}.new ${tokenFile}
       echo "coder-bootstrap: token created"
     '';
@@ -199,6 +199,7 @@ lib.mkIf c.enable {
         fi
         # A copy: coder writes a lock file next to the template.
         work=$(mktemp -d)
+        trap 'rm -rf "$work"' EXIT
         cp -r "$dir". "$work"
         chmod -R u+w "$work"
         coder templates push "$name" --directory "$work" --yes --message "pushed by coder-templates (${templates})"

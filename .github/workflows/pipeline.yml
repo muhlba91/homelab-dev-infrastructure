@@ -40,14 +40,12 @@ jobs:
           cache-dependency-path: infrastructure/go.sum
 
       - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
-        id: import-secrets
         with:
           method: jwt
           url: ${{ secrets.VAULT_ADDR }}
           path: ${{ secrets.VAULT_PATH }}
           role: ${{ secrets.VAULT_ROLE }}
           exportToken: true
-          outputToken: true
           # login only: the secrets are read by fnox (fnox.toml), the same list as on the developer machines
 
       - name: Load secrets
@@ -150,14 +148,12 @@ jobs:
           cache: false
 
       - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
-        id: import-secrets
         with:
           method: jwt
           url: ${{ secrets.VAULT_ADDR }}
           path: ${{ secrets.VAULT_PATH }}
           role: ${{ secrets.VAULT_ROLE }}
           exportToken: true
-          outputToken: true
           # login only: the secrets are read by fnox (fnox.toml), the same list as on the developer machines
 
       - name: Load secrets
@@ -226,14 +222,12 @@ jobs:
           fetch-depth: 0
 
       - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
-        id: import-secrets
         with:
           method: jwt
           url: ${{ secrets.VAULT_ADDR }}
           path: ${{ secrets.VAULT_PATH }}
           role: ${{ secrets.VAULT_ROLE }}
           exportToken: true
-          outputToken: true
           # login only: the secrets are read by fnox (fnox.toml), the same list as on the developer machines
 
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7

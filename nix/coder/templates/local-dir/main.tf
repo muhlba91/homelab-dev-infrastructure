@@ -1,13 +1,9 @@
-# local-dir: a workspace is a directory in ~/workspaces (or ~/workspaces/<group>, an optional
-# parameter grouping workspaces in a subfolder) plus a `coder agent` running as the host's
-# user in a systemd user unit (outside NixOS: deploys never restart it, linger brings it back after
-# a reboot). No containers: one mise cache and one rootless Docker for every workspace.
-#
-# The built-in provisioner runs as the Coder server's user (the host's user), so local-exec runs
-# as that user. Stop destroys only the start-gated unit; the directory is destroyed on delete.
+# local-dir: a workspace is a directory in ~/workspaces[/<group>] plus a `coder agent` in a systemd
+# user unit of the host's user (local-exec runs as that user; deploys never restart the unit, linger
+# restores it after a reboot). Stop removes the unit; delete removes the directory.
 
 terraform {
-  # terraform_data: 1.4.
+  # terraform_data needs 1.4.
   required_version = ">= 1.4"
   required_providers {
     coder = {
@@ -23,7 +19,7 @@ data "coder_workspace" "me" {}
 data "coder_parameter" "repo" {
   name         = "repo"
   display_name = "Repository"
-  description  = "Optional: a repository to clone into the workspace (git@github.com:owner/repo.git: the machine key); kept up to date while the working tree is clean."
+  description  = "Optional repository to clone (e.g. git@github.com:owner/repo.git); fast-forwarded while the working tree is clean."
   type         = "string"
   default      = ""
   mutable      = false
@@ -59,29 +55,22 @@ resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   dir  = local.dir
 
-  # The agent points git at Coder's own key (coder gitssh); the machine key in ~/.ssh/config
-  # (github.com) authenticates and signs instead.
   env = {
+    # Not Coder's own key (coder gitssh): the machine key in ~/.ssh/config authenticates and signs.
     GIT_SSH_COMMAND = "ssh"
+    # For sync.sh.
+    WORKSPACE_DIR  = local.dir
+    WORKSPACE_REPO = data.coder_parameter.repo.value
   }
-}
-
-# The sync (sync.sh): clone, fetch, fast-forward only a clean branch with an upstream, mise install.
-locals {
-  sync = join("\n", [
-    "export WORKSPACE_DIR='${local.dir}' WORKSPACE_REPO='${data.coder_parameter.repo.value}'",
-    file("${path.module}/sync.sh"),
-  ])
 }
 
 # At every agent start (workspace start, VM reboot, a deploy restarting the agent).
 resource "coder_script" "sync_start" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Sync"
-  icon               = "/icon/git.svg"
-  run_on_start       = true
-  start_blocks_login = false
-  script             = local.sync
+  agent_id     = coder_agent.main.id
+  display_name = "Sync"
+  icon         = "/icon/git.svg"
+  run_on_start = true
+  script       = file("${path.module}/sync.sh")
 }
 
 # Hourly while the workspace runs (Coder's cron has a seconds field).
@@ -90,7 +79,7 @@ resource "coder_script" "sync_hourly" {
   display_name = "Sync (hourly)"
   icon         = "/icon/git.svg"
   cron         = "0 0 * * * *"
-  script       = local.sync
+  script       = file("${path.module}/sync.sh")
 }
 
 # The directory: created on the first start, destroyed only when the workspace is deleted (a group
@@ -116,7 +105,6 @@ resource "terraform_data" "dir" {
 # Shown on the workspace page (Coder has no workspace tags).
 resource "coder_metadata" "dir" {
   resource_id = terraform_data.dir.id
-  hide        = false
 
   item {
     key   = "group"
@@ -133,8 +121,8 @@ resource "coder_metadata" "dir" {
 }
 
 # The agent: an enabled user unit while the workspace is started. Idempotent (a start after a
-# build interrupted by a Coder restart repairs it). The agent runs on the server's host and talks
-# to it locally, not through the access URL (the cluster's public gateway, plan Phase 5).
+# build interrupted by a Coder restart repairs it). The agent talks to the server locally, not
+# through the public access URL.
 resource "terraform_data" "agent" {
   count = data.coder_workspace.me.start_count
 
@@ -146,11 +134,13 @@ resource "terraform_data" "agent" {
   triggers_replace = [coder_agent.main.token]
 
   provisioner "local-exec" {
-    command = <<-EOT
+    # The token via the environment, not in the command line.
+    environment = { TOKEN = coder_agent.main.token }
+    command     = <<-EOT
       set -eu
       umask 077
       mkdir -p "$(dirname '${local.envfile}')" '${local.state}' ~/.config/systemd/user
-      printf 'CODER_AGENT_TOKEN=%s\nCODER_AGENT_URL=%s\n' '${coder_agent.main.token}' 'http://127.0.0.1:3000' > '${local.envfile}'
+      printf 'CODER_AGENT_TOKEN=%s\nCODER_AGENT_URL=%s\n' "$TOKEN" 'http://127.0.0.1:3000' > '${local.envfile}'
       cat > ~/.config/systemd/user/${local.unit}.service <<UNIT
       [Unit]
       Description=Coder agent of workspace ${local.name}
