@@ -72,10 +72,10 @@ in
           };
         })
         ''
-          Login with SSO (an OIDC client, rendered by Pulumi from the stack config `zitadel`;
-          needs an https accessUrl and the secret `coder-oidc`, the client secret as an environment
-          file). Sign-ups are allowed: the provider decides who gets in. The
-          password login stays (the bootstrap admin, over the local URL). null = password login only.
+          SSO login with an OIDC client (rendered by Pulumi from the stack config `zitadel`; needs an
+          https accessUrl and the secret `coder-oidc`, the client secret as an environment file).
+          Sign-ups are allowed: the provider decides who gets in. The password login stays.
+          null = password login only.
         '';
   };
 

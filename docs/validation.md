@@ -63,7 +63,6 @@ Run as the host's user:
 
 - [ ] `coder.accessUrl` shows "Sign in with SSO"; the SSO login works, and a user the provider does not allow is
   refused
-- [ ] the password login fails at `coder.accessUrl` (403 from the gateway) and works at `http://<mgmt address>:3000`
 - [ ] the SSO account is an owner ([install.md](install.md#coder-sso)); `systemctl status coder-bootstrap` reports
   "token valid"
 

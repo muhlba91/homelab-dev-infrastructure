@@ -456,8 +456,6 @@ lib.runTests {
   };
 
   # Invalid vars fail evaluation.
-  # Coder without a proxy: the default URL, no trusted proxy headers. The template's agent URL
-  # uses dev.coder.port.
   # SSO with OIDC: the client ID in the environment, the secret only from the environment file.
   testCoderOIDC = {
     expr =
@@ -490,6 +488,8 @@ lib.runTests {
     };
   };
 
+  # Coder without a proxy: the default URL, no trusted proxy headers. The template's agent URL
+  # uses dev.coder.port.
   testCoderDirect = {
     expr =
       let
