@@ -53,8 +53,7 @@ recreate the workspaces from pushed branches.
 
 3. `coder.oidc: true` in the host file; merge (CI runs `pulumi up` and the deploy, which delivers
    `secrets/coder-oidc`).
-4. Sign in with SSO at `coder.accessUrl`: the first login creates a member account. Its e-mail must differ from the
-   admin's (`user.git.email`): Coder refuses an SSO login for the e-mail of a password account.
+4. Sign in with SSO at `coder.accessUrl`: the first login creates a member account.
 5. Make it an owner: log in as the admin (password: `pulumi stack output hosts --show-secrets`), Users, the new
    account, roles: Owner.
 

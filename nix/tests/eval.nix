@@ -168,6 +168,7 @@ lib.runTests {
       configDir = dev.config.systemd.services.coder.environment.CODER_CONFIG_DIR;
       bootstrapUser = dev.config.systemd.services.coder-bootstrap.serviceConfig.User;
       bootstrapCredential = dev.config.systemd.services.coder-bootstrap.serviceConfig.LoadCredential;
+      bootstrapAdmin = lib.hasInfix "--arg e admin@fixture-dev.fixture.internal.example" dev.config.systemd.services.coder-bootstrap.script;
       inherit (dev.config.services.coder) accessUrl wildcardAccessUrl;
       proxy = {
         inherit (dev.config.systemd.services.coder.environment)
@@ -190,6 +191,7 @@ lib.runTests {
       configDir = "/data/coder/config";
       bootstrapUser = "daniel";
       bootstrapCredential = "admin-password:/var/lib/secrets/coder-admin-password";
+      bootstrapAdmin = true;
       accessUrl = "https://coder.example.org";
       wildcardAccessUrl = "*.coder.example.org";
       proxy = {

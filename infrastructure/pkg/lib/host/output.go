@@ -31,8 +31,9 @@ func Output(h *host.Config, data *Data) pulumi.Map {
 	if data.CoderAdminPassword != nil {
 		output["coder"] = pulumi.Map{
 			"admin": pulumi.ToSecret(pulumi.Map{
-				"username": pulumi.String(h.User.Name),
-				"email":    pulumi.String(h.User.Git.Email),
+				// As nix/modules/options/services.nix (dev.coder.admin).
+				"username": pulumi.String("admin"),
+				"email":    pulumi.String("admin@" + h.Name + "." + h.Network.Domain),
 				"password": *data.CoderAdminPassword,
 			}),
 		}

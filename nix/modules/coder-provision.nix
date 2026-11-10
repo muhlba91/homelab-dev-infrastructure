@@ -10,6 +10,7 @@ let
   cfg = config.dev;
   c = cfg.coder;
   u = cfg.user;
+  inherit (c) admin;
   inherit (c) stateDir;
   tokenFile = "${stateDir}/tokens/admin";
   localUrl = "http://127.0.0.1:${toString c.port}";
@@ -50,13 +51,13 @@ lib.mkIf c.enable {
       # The password stays out of argv (--rawfile).
       pw="$CREDENTIALS_DIRECTORY/admin-password"
       if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/api/v2/users/first")" = 404 ]; then
-        jq -n --arg u ${lib.escapeShellArg u.name} --arg e ${lib.escapeShellArg u.git.email} \
-          --arg n ${lib.escapeShellArg u.git.name} --rawfile p "$pw" \
+        jq -n --arg u ${lib.escapeShellArg admin.name} --arg e ${lib.escapeShellArg admin.email} \
+          --arg n Admin --rawfile p "$pw" \
           '{username: $u, email: $e, name: $n, password: ($p | rtrimstr("\n")), trial: false}' |
           curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/first" >/dev/null
         echo "coder-bootstrap: first user created"
       fi
-      session=$(jq -n --arg e ${lib.escapeShellArg u.git.email} --rawfile p "$pw" \
+      session=$(jq -n --arg e ${lib.escapeShellArg admin.email} --rawfile p "$pw" \
         '{email: $e, password: ($p | rtrimstr("\n"))}' |
         curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$url/api/v2/users/login" | jq -er .session_token)
       jq -n '{token_name: "bootstrap", lifetime: 0}' |

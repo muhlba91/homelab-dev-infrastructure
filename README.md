@@ -38,8 +38,9 @@ pulumi stack init prod --secrets-provider \
 
 Per enabled host, `pulumi up` creates the deploy SSH key, the SSH host key and the GitHub machine key; with Coder the
 admin password and the restic credentials (with `coder.oidc` also the OIDC client secret); with the Vault Agent an
-AppRole secret ID. It writes them and the host's `vars.nix` to `infrastructure/outputs/` and the bucket. Stack output `hosts.<host>`: `keys.{deploy,host,github}.public`
-and `coder.admin` (secret).
+AppRole secret ID. It writes them and the host's `vars.nix` to `infrastructure/outputs/` and the bucket. Stack output
+`hosts.<host>`: `keys.{deploy,host,github}.public` and `coder.admin` (secret; the bootstrap admin `admin`,
+`admin@<host>.<domain>`).
 
 ### Credentials
 

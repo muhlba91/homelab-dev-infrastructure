@@ -54,6 +54,14 @@ in
     stateDir =
       fixed types.str "${config.dev.storage.dataDir}/coder"
         "Coder's state (config, cache, tokens).";
+    # Generic, so an SSO login with the user's own e-mail never collides with it (Coder refuses
+    # an SSO login for a password account's e-mail). Pulumi's stack output repeats it.
+    admin = {
+      name = fixed types.str "admin" "Username of Coder's first user (the bootstrap admin).";
+      email =
+        fixed types.str "admin@${config.dev.host.hostname}.${config.dev.host.domain}"
+          "E-mail (login) of the bootstrap admin.";
+    };
     wildcardAccessUrl = nullable types.str ''
       Hostname pattern for workspace apps (e.g. `*.coder.example.org`; null: path-based apps only).
     '';
