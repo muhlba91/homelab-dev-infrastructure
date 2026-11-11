@@ -12,9 +12,7 @@ let
   cfg = config.dev;
   inherit (config.users.users.${cfg.user.name}) home;
   # The Paseo package of the current system (deploys do not restart the daemon).
-  paseoPackage = dirOf (
-    dirOf (lib.head (lib.splitString " " config.systemd.user.services.paseo.serviceConfig.ExecStart))
-  );
+  paseoPackage = config.systemd.user.services.paseo.environment.DEV_PASEO_PACKAGE;
 in
 {
   environment.systemPackages = [
@@ -92,7 +90,7 @@ in
           done
           if [ -n "$up" ]; then
             pid=$(systemctl --machine=${cfg.user.name}@.host --user show --property=MainPID --value paseo 2>/dev/null || echo 0)
-            if [ "$pid" != 0 ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" | grep -qF ${paseoPackage}; then
+            if [ "$pid" != 0 ] && ! tr '\0' '\n' < "/proc/$pid/environ" | grep -qx "DEV_PASEO_PACKAGE=${paseoPackage}"; then
               echo "warn paseo: runs an older version (./host ssh ${cfg.host.name} 'sudo systemctl --machine=${cfg.user.name}@.host --user restart paseo'; interrupts running agents)"
             else
               echo "ok   paseo: healthy"

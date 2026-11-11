@@ -57,6 +57,9 @@ lib.mkIf p.enable {
         [ "loopback" ] ++ cfg.trusted.v4 ++ cfg.trusted.v6
       );
       USE_BUILTIN_RIPGREP = "0";
+      # The package the daemon started from, for dev-health (Paseo rewrites its process title, so
+      # the command line does not show it; the environment keeps it).
+      DEV_PASEO_PACKAGE = "${package}";
       # As a login shell: claude (~/.local/bin), the mise shims (each repository's tools), the
       # system and the user's profile.
       PATH = lib.mkForce (
