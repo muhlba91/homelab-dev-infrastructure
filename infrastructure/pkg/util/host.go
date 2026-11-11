@@ -27,6 +27,10 @@ var fileName = regexp.MustCompile(`^(?:([0-9]+)-)?(.+)$`)
 // dev-infrastructure-<host>-backup-<stack>, must fit Scaleway's 64-character IAM names).
 var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$`)
 
+// hostnamePattern matches a lowercase DNS name: dot-separated labels (as nix/modules/options/services.nix's
+// dev.paseo.hostname).
+var hostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
+
 // ParseHostsFromFiles reads the host files (*.yml, *.yaml) of a directory. A file is named after its host,
 // optionally prefixed with its deploy order ([<order>-]<name>.yml); host names are unique.
 // dir: The directory of the host configuration files.
@@ -185,7 +189,8 @@ func checkValues(h *host.Config) error {
 	return nil
 }
 
-// checkURLs rejects URLs that must be https: the dotfiles repository, Coder's URL with OIDC.
+// checkURLs rejects URLs that must be https (the dotfiles repository, Coder's URL with OIDC) and a Paseo hostname
+// that is not a DNS name.
 // h: The host configuration.
 func checkURLs(h *host.Config) error {
 	if d := h.User.Dotfiles; d != nil && !strings.HasPrefix(*d, "https://") {
@@ -193,6 +198,9 @@ func checkURLs(h *host.Config) error {
 	}
 	if h.UsesCoderOIDC() && (h.Coder.AccessURL == nil || !strings.HasPrefix(*h.Coder.AccessURL, "https://")) {
 		return errors.New("coder.oidc needs an https coder.accessUrl")
+	}
+	if p := h.Paseo; p != nil && p.Hostname != nil && *p.Hostname != "" && !hostnamePattern.MatchString(*p.Hostname) {
+		return fmt.Errorf("paseo.hostname %q: must be a lowercase DNS name (no scheme or path)", *p.Hostname)
 	}
 	return nil
 }
@@ -232,6 +240,9 @@ func checkStrings(h *host.Config) error {
 	}
 	if v := h.Vault; v != nil {
 		optional["vault.address"] = v.Address
+	}
+	if p := h.Paseo; p != nil {
+		optional["paseo.hostname"] = p.Hostname
 	}
 	for _, field := range slices.Sorted(maps.Keys(optional)) {
 		if value := optional[field]; value != nil {

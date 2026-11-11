@@ -38,13 +38,16 @@ func testHost(coder bool) *hostModel.Config {
 }
 
 // TestOutput checks the structure of a host's stack output: the public keys (plain, without a trailing newline)
-// and Coder's admin only for a host with Coder.
+// Coder's admin only for a host with Coder, and Paseo's password only for a host with Paseo (secret).
 func TestOutput(t *testing.T) {
 	// vars.nix is rendered from ./assets.
 	t.Chdir("../../..")
 	for _, coder := range []bool{false, true} {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			h := testHost(coder)
+			// Paseo with Coder: both outputs present, then both absent.
+			paseo := coder
+			h.Paseo = &hostModel.PaseoConfig{Enabled: &paseo}
 			data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey}, nil)
 			require.NoError(t, hErr)
 
@@ -73,6 +76,11 @@ func TestOutput(t *testing.T) {
 				admin, aOk := coderOutput["admin"].(pulumi.Output)
 				require.True(t, aOk)
 				assert.True(t, pulumi.IsSecret(admin))
+			}
+			paseoOutput, hasPaseo := output["paseo"].(pulumi.Output)
+			assert.Equal(t, paseo, hasPaseo)
+			if hasPaseo {
+				assert.True(t, pulumi.IsSecret(paseoOutput))
 			}
 			return nil
 		}, pulumi.WithMocks("project", "test", mocks.Mocks{}))
@@ -106,6 +114,7 @@ func TestSecrets(t *testing.T) {
 		h.Vault = &hostModel.VaultConfig{Enabled: &enabled, Address: &address}
 		accessURL := "https://coder.example.org"
 		h.Coder.AccessURL, h.Coder.OIDC = &accessURL, &enabled
+		h.Paseo = &hostModel.PaseoConfig{Enabled: &enabled}
 		provider := &config.OIDCConfig{URL: "https://id.example.org", ClientID: "id", ClientSecret: "secret"}
 		data, hErr := host.ConfigureHost(ctx, h, []string{mocks.PublicKey}, provider)
 		require.NoError(t, hErr)
@@ -117,6 +126,8 @@ func TestSecrets(t *testing.T) {
 			"restic s3":            data.Backup.S3Environment,
 			"vault role id":        data.Vault.RoleID,
 			"vault secret id":      data.Vault.SecretID,
+			"paseo password":       *data.PaseoPassword,
+			"paseo env":            *data.PaseoEnv,
 		} {
 			assert.True(t, pulumi.IsSecret(value), name)
 		}

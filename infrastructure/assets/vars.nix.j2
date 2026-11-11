@@ -151,6 +151,17 @@ Data: varsData (pkg/lib/host/vars.go).
     backup.repository = {{ nix . }};
     {{- end }}
 
+    {{- with .Host.Paseo }}
+    paseo = {
+      {{- with .Enabled }}
+      enable = {{ . }};
+      {{- end }}
+      {{- with .Hostname }}
+      hostname = {{ nix . }};
+      {{- end }}
+    };
+    {{- end }}
+
     {{- with .Host.Coder }}
     coder = {
       {{- with .Enabled }}

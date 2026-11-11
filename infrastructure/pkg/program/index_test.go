@@ -127,7 +127,7 @@ func render(t *testing.T, dir string, enable bool) {
 
 // assertKeys checks the key and secret files of an enabled host: the ones every host gets, and the Coder admin
 // password and the backup credentials exactly when the host runs Coder, the Vault Agent's login exactly when it runs
-// the agent.
+// the agent, Paseo's password exactly when it runs Paseo.
 func assertKeys(t *testing.T, host *hostModel.Config) {
 	t.Helper()
 
@@ -151,6 +151,14 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 		assert.Equal(t, "CODER_OIDC_CLIENT_SECRET=mock-secret\n", string(content))
 	} else {
 		assert.NoFileExists(t, oidc)
+	}
+	paseo := filepath.Join(secrets, "paseo-env")
+	if host.UsesPaseo() {
+		content, err := os.ReadFile(paseo)
+		require.NoError(t, err)
+		assert.Equal(t, "PASEO_PASSWORD=mock-password-password-paseo-"+host.Name+"-test\n", string(content))
+	} else {
+		assert.NoFileExists(t, paseo)
 	}
 	for _, name := range []string{"vault-role-id", "vault-secret-id"} {
 		if host.UsesVault() {
@@ -176,7 +184,9 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 		host.Name,
 	)
 	assert.Equal(t, host.UsesCoderOIDC(), strings.Contains(string(vars), `clientId = "mock-client";`), host.Name)
+	assert.Equal(t, host.UsesPaseo(), strings.Contains(string(vars), "paseo = {\n      enable = true;"), host.Name)
 	assert.NotContains(t, string(vars), "mock-secret", host.Name)
+	assert.NotContains(t, string(vars), "mock-password", host.Name)
 }
 
 // TestRunAsIs renders the host files as they are (only enabled hosts get keys).

@@ -146,6 +146,7 @@ lib.runTests {
         "coder-admin-password"
         "coder-oidc"
         "github-ssh-key"
+        "paseo-env"
         "restic-password"
         "restic-s3"
         "ssh-host-key"
@@ -253,13 +254,15 @@ lib.runTests {
     ];
   };
 
-  # SSH (and Coder's port and Docker's open ports when enabled) only from the trusted networks.
+  # SSH (and Coder's and Paseo's ports and Docker's open ports when enabled) only from the trusted
+  # networks.
   testFirewall = {
     expr =
       map
         (s: {
           ssh = lib.hasInfix "ip saddr { 10.0.0.0/8 } tcp dport { 22" s.config.networking.firewall.extraInputRules;
           coder = lib.hasInfix ", 3000" s.config.networking.firewall.extraInputRules;
+          paseo = lib.hasInfix ", 6767" s.config.networking.firewall.extraInputRules;
           docker = lib.hasInfix ", 8000-8999 }" s.config.networking.firewall.extraInputRules;
           open = s.config.networking.firewall.allowedTCPPorts;
         })
@@ -271,12 +274,14 @@ lib.runTests {
       {
         ssh = true;
         coder = true;
+        paseo = true;
         docker = true;
         open = [ ];
       }
       {
         ssh = true;
         coder = false;
+        paseo = false;
         docker = false;
         open = [ ];
       }
@@ -491,6 +496,7 @@ lib.runTests {
       condition = dev.config.systemd.user.services.claude-code-update.unitConfig.ConditionUser;
       update = lib.hasInfix ''exec "$bin" update'' dev.config.systemd.user.services.claude-code-update.script;
       install = lib.hasInfix ''"$tmp/claude" install latest'' dev.config.systemd.user.services.claude-code-update.script;
+      signature = lib.hasInfix "gpgv --keyring" dev.config.systemd.user.services.claude-code-update.script;
       timer = dev.config.systemd.user.timers.claude-code-update.wantedBy;
       inherit (dev.config.environment) localBinInPath;
     };
@@ -498,8 +504,72 @@ lib.runTests {
       condition = "daniel";
       update = true;
       install = true;
+      signature = true;
       timer = [ "timers.target" ];
       localBinInPath = true;
+    };
+  };
+
+  # Paseo: a user unit for the host's user that a deploy does not restart, configured by
+  # environment variables only (never config.json), the password from a secret the user owns;
+  # none without paseo.enable.
+  testPaseo = {
+    expr =
+      let
+        unit = dev.config.systemd.user.services.paseo;
+        env = unit.environment;
+      in
+      {
+        condition = unit.unitConfig.ConditionUser;
+        inherit (unit) restartIfChanged wantedBy;
+        exec = lib.hasSuffix "/bin/paseo-server --no-relay" unit.serviceConfig.ExecStart;
+        inherit (unit.serviceConfig) EnvironmentFile;
+        env = {
+          inherit (env)
+            PASEO_HOME
+            PASEO_LISTEN
+            PASEO_WEB_UI_ENABLED
+            PASEO_TRUSTED_PROXIES
+            PASEO_HOSTNAMES
+            ;
+        };
+        path = lib.hasPrefix "/data/home/daniel/.local/bin:" env.PATH;
+        secret = {
+          inherit (dev.config.dev.secrets.paseo-env) owner mode;
+          reload = lib.hasInfix "--user try-restart paseo.service" dev.config.dev.secrets.paseo-env.reload;
+        };
+        minimal = minimal.config.systemd.user.services ? paseo;
+        hostname = map (h: fails dev { dev.paseo.hostname = lib.mkForce h; }) [
+          "https://paseo.example.org"
+          "a..b"
+          "paseo.example.org"
+        ];
+      };
+    expected = {
+      condition = "daniel";
+      restartIfChanged = false;
+      wantedBy = [ "default.target" ];
+      exec = true;
+      EnvironmentFile = "/var/lib/secrets/paseo-env";
+      env = {
+        PASEO_HOME = "/data/home/daniel/.paseo";
+        PASEO_LISTEN = "0.0.0.0:6767";
+        PASEO_WEB_UI_ENABLED = "true";
+        PASEO_TRUSTED_PROXIES = "loopback,10.0.0.0/8,fc00::/7,2001:678:dc0::/48";
+        PASEO_HOSTNAMES = "paseo.example.org";
+      };
+      path = true;
+      secret = {
+        owner = "daniel";
+        mode = "0400";
+        reload = true;
+      };
+      minimal = false;
+      hostname = [
+        true
+        true
+        false
+      ];
     };
   };
 

@@ -21,6 +21,9 @@ import (
 const (
 	// passwordLength is the length of the generated passwords (letters and digits only).
 	passwordLength = 32
+	// paseoPasswordLength is the length of Paseo's password: a bearer token on a public endpoint without a login
+	// rate limit.
+	paseoPasswordLength = 48
 	// githubKeyRotationDays is the rotation period of the GitHub machine key (re-registered on GitHub by hand).
 	githubKeyRotationDays = 365
 )
@@ -38,6 +41,10 @@ type Data struct {
 	CoderAdminPassword *pulumi.StringOutput
 	// CoderOIDC is Coder's OIDC client secret as an environment file (secret); nil without coder.oidc.
 	CoderOIDC *pulumi.StringOutput
+	// PaseoPassword is the password of Paseo's web UI, apps and API (secret); nil without paseo.enabled.
+	PaseoPassword *pulumi.StringOutput
+	// PaseoEnv is Paseo's password as an environment file (secret); nil without paseo.enabled.
+	PaseoEnv *pulumi.StringOutput
 	// Backup holds the credentials of the database backups.
 	Backup *backup.Credentials
 	// Vault holds the Vault Agent's AppRole login.
@@ -76,34 +83,9 @@ func ConfigureHost(
 		return nil, err
 	}
 
-	backupRepository := ""
-	if h.UsesCoder() {
-		password, pErr := random.CreatePassword(
-			ctx,
-			fmt.Sprintf("password-coder-admin-%s-%s", h.Name, config.Environment),
-			&random.PasswordOptions{Length: passwordLength, Special: false},
-		)
-		if pErr != nil {
-			return nil, pErr
-		}
-		data.CoderAdminPassword = &password.Password
-
-		if data.Backup, err = backup.Create(ctx, h.Name); err != nil {
-			return nil, err
-		}
-		backupRepository = backup.Repository(h.Name)
-	}
-
-	oidc, oErr := oidcProvider(h, provider)
-	if oErr != nil {
-		return nil, oErr
-	}
-	data.CoderOIDC = oidcEnvFile(ctx, oidc)
-
-	if h.UsesVault() {
-		if data.Vault, err = vault.Create(ctx, h.Name); err != nil {
-			return nil, err
-		}
+	backupRepository, oidc, err := createServiceSecrets(ctx, h, provider, data)
+	if err != nil {
+		return nil, err
 	}
 
 	// An error returned from the apply fails the update instead of writing an empty file.
@@ -130,6 +112,75 @@ func ConfigureHost(
 	}).(pulumi.StringOutput)
 
 	return data, nil
+}
+
+// createServiceSecrets creates the secrets of the host's services into data: Coder's admin password and backup
+// credentials, its OIDC client secret, the Vault Agent's login, Paseo's password. Returns the backup repository
+// (empty without Coder) and the OIDC provider (nil without coder.oidc).
+// ctx: The Pulumi context.
+// h: The host configuration.
+// provider: The OIDC provider of the stack config (nil when unset).
+// data: The host's data, filled in.
+func createServiceSecrets(
+	ctx *pulumi.Context, h *host.Config, provider *config.OIDCConfig, data *Data,
+) (string, *config.OIDCConfig, error) {
+	var err error
+	backupRepository := ""
+	if h.UsesCoder() {
+		if data.CoderAdminPassword, err = createPassword(ctx, h.Name, "coder-admin", passwordLength); err != nil {
+			return "", nil, err
+		}
+		if data.Backup, err = backup.Create(ctx, h.Name); err != nil {
+			return "", nil, err
+		}
+		backupRepository = backup.Repository(h.Name)
+	}
+
+	oidc, err := oidcProvider(h, provider)
+	if err != nil {
+		return "", nil, err
+	}
+	data.CoderOIDC = oidcEnvFile(ctx, oidc)
+
+	if h.UsesVault() {
+		if data.Vault, err = vault.Create(ctx, h.Name); err != nil {
+			return "", nil, err
+		}
+	}
+
+	if h.UsesPaseo() {
+		if data.PaseoPassword, err = createPassword(ctx, h.Name, "paseo", paseoPasswordLength); err != nil {
+			return "", nil, err
+		}
+		data.PaseoEnv = paseoEnvFile(*data.PaseoPassword)
+	}
+	return backupRepository, oidc, nil
+}
+
+// createPassword creates a password of letters and digits (secret), named password-<kind>-<host>-<environment>.
+// ctx: The Pulumi context.
+// name: The name of the host.
+// kind: What the password is for (part of the resource name).
+// length: The length of the password.
+func createPassword(ctx *pulumi.Context, name, kind string, length int) (*pulumi.StringOutput, error) {
+	password, err := random.CreatePassword(
+		ctx,
+		fmt.Sprintf("password-%s-%s-%s", kind, name, config.Environment),
+		&random.PasswordOptions{Length: length, Special: false},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &password.Password, nil
+}
+
+// paseoEnvFile returns Paseo's environment file with the password (secret: an apply of a secret stays secret).
+// password: Paseo's password (letters and digits only: no quoting needed in systemd's EnvironmentFile).
+func paseoEnvFile(password pulumi.StringOutput) *pulumi.StringOutput {
+	env, _ := password.ApplyT(func(p string) string {
+		return "PASEO_PASSWORD=" + p + "\n"
+	}).(pulumi.StringOutput)
+	return &env
 }
 
 // oidcProvider returns the OIDC provider of a host with coder.oidc; nil without.

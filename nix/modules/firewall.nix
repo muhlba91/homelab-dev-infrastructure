@@ -1,4 +1,4 @@
-# Default-deny inbound (nftables): SSH, Coder and docker.trustedPorts only from the trusted
+# Default-deny inbound (nftables): SSH, Coder, Paseo and docker.trustedPorts only from the trusted
 # networks; outbound open. The site router is the first layer, this the second.
 {
   config,
@@ -12,6 +12,7 @@ let
     "22"
   ]
   ++ lib.optional cfg.coder.enable (toString cfg.coder.port)
+  ++ lib.optional cfg.paseo.enable (toString cfg.paseo.port)
   ++ lib.optionals cfg.docker.enable cfg.docker.trustedPorts;
   rule = family: nets: ''
     ${family} saddr ${dlib.nftSet nets} tcp dport ${dlib.nftSet ports} accept

@@ -1,4 +1,4 @@
-# Vars schema: the services (Docker, Coder and its backup, the Vault Agent).
+# Vars schema: the services (Docker, Coder and its backup, the Vault Agent, Paseo).
 { config, lib, ... }:
 let
   inherit (lib) types;
@@ -94,5 +94,21 @@ in
     '';
     address = nullable types.str "URL of Vault (required when enabled).";
     tokenFile = fixed types.str "/run/vault-agent/token" "The agent's token sink.";
+  };
+
+  options.dev.paseo = {
+    enable = bool false ''
+      The Paseo daemon (agent orchestration): a systemd user unit of the host's user, its web UI,
+      apps and API on one port from the trusted networks, behind the password of the secret
+      `paseo-env` (`PASEO_PASSWORD=…`). Settings changed in its UI persist (~/.paseo/config.json
+      is not managed); the listen address, password, relay (off), web UI and proxy trust are
+      environment variables and win over that file.
+    '';
+    hostname = nullable (types.strMatching "[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*") ''
+      The name a TLS-terminating proxy forwards (the cluster's gateway): allowed in the Host
+      header, and the proxy's X-Forwarded-* headers are trusted from the trusted networks.
+      null = IP addresses and localhost only.
+    '';
+    port = fixed types.port 6767 "Paseo's port.";
   };
 }

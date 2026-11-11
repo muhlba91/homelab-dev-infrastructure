@@ -27,6 +27,8 @@ type Config struct {
 	Coder *CoderConfig `yaml:"coder,omitempty"`
 	// Vault is the configuration of the Vault Agent.
 	Vault *VaultConfig `yaml:"vault,omitempty"`
+	// Paseo is the configuration of the Paseo daemon.
+	Paseo *PaseoConfig `yaml:"paseo,omitempty"`
 }
 
 // IsEnabled reports whether the host is enabled (deployable); unset means disabled.
@@ -47,6 +49,11 @@ func (c *Config) UsesCoderOIDC() bool {
 // UsesVault reports whether the host runs the Vault Agent (vault.enabled).
 func (c *Config) UsesVault() bool {
 	return c.Vault != nil && isTrue(c.Vault.Enabled)
+}
+
+// UsesPaseo reports whether the host runs the Paseo daemon (paseo.enabled).
+func (c *Config) UsesPaseo() bool {
+	return c.Paseo != nil && isTrue(c.Paseo.Enabled)
 }
 
 // isTrue reports whether an optional flag is set and true.

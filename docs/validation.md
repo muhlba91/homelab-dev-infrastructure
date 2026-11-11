@@ -70,6 +70,20 @@ Run as the host's user:
 - [ ] the SSO account is an owner ([install.md](install.md#coder-sso)); `systemctl status coder-bootstrap` reports
   "token valid"
 
+## Paseo
+
+- [ ] `systemctl --user status paseo` is active; `dev-health` reports "paseo: healthy"
+- [ ] without the password, an `/api/` request other than `/api/health` is 401 (also on the host: loopback is not
+  exempt)
+- [ ] in the home cluster: `kubectl -n external-services get listenerset paseo-listeners` accepted, certificate
+  `paseo-tls-cert` ready, the DNS record published
+- [ ] `https://<paseo.hostname>` shows the login; the password (`pulumi stack output hosts --show-secrets`, or
+  `outputs/keys/<host>/secrets/paseo-env`) logs in from the Mac and the phone app (mobile data, not the mesh)
+- [ ] a Claude Code agent in a plain directory (no worktree) works across two repositories; its commits are signed
+- [ ] a deploy that changes the system keeps a running agent going; `dev-health` then warns "runs an older version"
+  until `systemctl --user restart paseo`
+- [ ] a setting changed in the UI survives a restart of the daemon
+
 ## Developer machine access
 
 Run as the host's user:

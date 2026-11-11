@@ -17,6 +17,7 @@
     ./nix-ld.nix
     ./mise.nix
     ./claude-code.nix
+    ./paseo.nix
     ./docker.nix
     ./coder.nix
     ./coder-provision.nix

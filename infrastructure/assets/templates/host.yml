@@ -99,3 +99,11 @@ vault:
   enabled: false
   # required when enabled
   address: https://vault.example.org
+
+# optional Paseo settings: the agent orchestrator, a systemd user unit of the user (web UI, apps and API on port 6767,
+# from the trusted networks); an enabled Paseo gets a generated password (secrets/paseo-env)
+paseo:
+  enabled: false
+  # optional: the name a TLS-terminating proxy forwards (allowed Host header, its X-Forwarded-* headers trusted from
+  # the trusted networks); default none
+  hostname: paseo.example.org

@@ -139,6 +139,10 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
   (`https://coder.dev.home.muehlbachler.io`, apps under `coder.wildcardAccessUrl`). Nightly restic backup of
   its database; restore: [install.md](docs/install.md#restoring-coders-database). With `coder.oidc`: SSO login
   through an OIDC provider next to the password login.
+- **Paseo** (`paseo.enabled`): the agent orchestrator as a user unit (a deploy does not restart it); web UI, apps and
+  API on port 6767 behind a password Pulumi generates (`secrets/paseo-env`, stack output `hosts.<host>.paseo`). With
+  `paseo.hostname` behind the home cluster's gateway (`https://paseo.dev.home.muehlbachler.io`). Settings changed in
+  its UI persist; agents run the user's `claude`.
 - **Vault Agent** (`vault.enabled`): a short-lived host token for the user, used by `vault`, fnox and Pulumi.
 - **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` and a global config in `/etc/fnox` with the host's GCP key.
 - **`dev-health`:** failed units, the user manager's groups, `/data` usage, Coder, the Vault token, Docker, pending

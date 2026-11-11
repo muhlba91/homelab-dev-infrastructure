@@ -1,7 +1,7 @@
 # `dev-health` (./host health, after every deploy). FAIL (exit 1): failed units, the user manager
-# lacking one of the user's groups (a deploy never restarts it), /data missing, Coder, Docker or the
-# Vault token down. warn: failed user units, /data >= 80%, Vault unreachable, Claude Code missing,
-# pending reboot.
+# lacking one of the user's groups (a deploy never restarts it), /data missing, Coder, Docker, Paseo
+# or the Vault token down. warn: failed user units, /data >= 80%, Vault unreachable, Claude Code
+# missing, Paseo running an older version, pending reboot.
 {
   config,
   lib,
@@ -11,6 +11,10 @@
 let
   cfg = config.dev;
   inherit (config.users.users.${cfg.user.name}) home;
+  # The Paseo package of the current system (deploys do not restart the daemon).
+  paseoPackage = dirOf (
+    dirOf (lib.head (lib.splitString " " config.systemd.user.services.paseo.serviceConfig.ExecStart))
+  );
 in
 {
   environment.systemPackages = [
@@ -77,6 +81,24 @@ in
             echo "ok   docker (${cfg.user.name}): active"
           else
             echo "FAIL docker (${cfg.user.name}): not active"; rc=1
+          fi
+        ''}
+        ${lib.optionalString cfg.paseo.enable ''
+          # Up to 30 seconds: a deploy that adds the daemon starts it just before this check.
+          up=
+          for _ in $(seq 15); do
+            if curl -fsS -m 5 -o /dev/null http://127.0.0.1:${toString cfg.paseo.port}/api/health 2>/dev/null; then up=1; break; fi
+            sleep 2
+          done
+          if [ -n "$up" ]; then
+            pid=$(systemctl --machine=${cfg.user.name}@.host --user show --property=MainPID --value paseo 2>/dev/null || echo 0)
+            if [ "$pid" != 0 ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" | grep -qF ${paseoPackage}; then
+              echo "warn paseo: runs an older version (./host ssh ${cfg.host.name} 'sudo systemctl --machine=${cfg.user.name}@.host --user restart paseo'; interrupts running agents)"
+            else
+              echo "ok   paseo: healthy"
+            fi
+          else
+            echo "FAIL paseo: /api/health does not answer"; rc=1
           fi
         ''}
         # Installed by a user timer (claude-code.nix): a missing binary is the timer's failure.

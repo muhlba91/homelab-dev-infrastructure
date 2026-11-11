@@ -1,5 +1,5 @@
 # Fixture: everything on (IPv6, pinned host key, machine key, Docker with open ports, Coder with
-# backups and a proxied URL, Vault Agent).
+# backups and a proxied URL, Vault Agent, Paseo behind a proxy).
 # Deployable and automated (tests the host list and deploy-rs' schema), never deployed: the keys are
 # throw-away public keys.
 {
@@ -68,6 +68,10 @@
     vault = {
       enable = true;
       address = "https://vault.example.org:8200";
+    };
+    paseo = {
+      enable = true;
+      hostname = "paseo.example.org";
     };
   };
 }

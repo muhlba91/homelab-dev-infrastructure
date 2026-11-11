@@ -95,6 +95,9 @@ func writeOutputFiles(ctx *pulumi.Context, name string, hostData *host.Data) ([]
 	if hostData.CoderOIDC != nil {
 		files = append(files, outputFile{secretsDir, "coder-oidc", *hostData.CoderOIDC})
 	}
+	if hostData.PaseoEnv != nil {
+		files = append(files, outputFile{secretsDir, "paseo-env", *hostData.PaseoEnv})
+	}
 	if hostData.Backup != nil {
 		files = append(files,
 			outputFile{secretsDir, "restic-password", hostData.Backup.Password},
@@ -110,7 +113,7 @@ func writeOutputFiles(ctx *pulumi.Context, name string, hostData *host.Data) ([]
 
 	paths := make([]string, 0, len(files))
 	for _, file := range files {
-		// The files are written asynchronously, and a failed write is only logged: create the directory first.
+		// The files are written asynchronously (a failed write fails the run): create the directory first.
 		outputPath := filepath.Join(".", outputDir, filepath.FromSlash(file.dir))
 		if err := os.MkdirAll(outputPath, dirPermissions); err != nil {
 			return nil, err

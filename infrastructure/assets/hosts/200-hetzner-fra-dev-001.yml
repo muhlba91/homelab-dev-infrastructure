@@ -57,3 +57,8 @@ coder:
 vault:
   enabled: true
   address: https://vault.platform.muehlbachler.io
+
+# optional Paseo settings
+paseo:
+  enabled: true
+  hostname: paseo.dev.home.muehlbachler.io

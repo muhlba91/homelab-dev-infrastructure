@@ -13,6 +13,7 @@ import (
 //
 //	keys: {deploy, host, github}: {public}         the public keys (plain; github is registered on GitHub by hand)
 //	coder: {admin: {username, email, password}}  Coder's first user (secret; only for a host with Coder)
+//	paseo: {password}                            Paseo's password (secret; only for a host with Paseo)
 //
 // h: The host configuration.
 // data: The generated resources and files of the host.
@@ -37,6 +38,10 @@ func Output(h *host.Config, data *Data) pulumi.Map {
 				"password": *data.CoderAdminPassword,
 			}),
 		}
+	}
+
+	if data.PaseoPassword != nil {
+		output["paseo"] = pulumi.ToSecret(pulumi.Map{"password": *data.PaseoPassword})
 	}
 
 	return output
