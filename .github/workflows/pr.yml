@@ -372,6 +372,25 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Terraform is unfree (Hydra does not build it): the copy the main pipeline cached (nix-cache), keyed by its
+      # derivation. A miss (a nixpkgs bump) builds it below (~8 min).
+      - id: terraform
+        run: |
+          drv=$(nix eval --raw .#nixosConfigurations.fixture-dev.pkgs.terraform.drvPath)
+          echo "key=nix-terraform-$(basename "$drv" | cut -c1-32)" >> "$GITHUB_OUTPUT"
+        working-directory: nix
+
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        with:
+          path: terraform-cache
+          key: ${{ steps.terraform.outputs.key }}
+
+      # Unsigned: only the main pipeline writes this cache (pull requests cannot write to main's scope).
+      - if: steps.cache.outputs.cache-hit == 'true'
+        run: |
+          nix copy --no-check-sigs --from "file://$GITHUB_WORKSPACE/terraform-cache" "$(cat terraform-cache/out-path)"
+
       - run: |
           nix build -L --no-link ".#nixosConfigurations.$HOST.config.system.build.toplevel" --override-input hosts path:../hosts
         working-directory: nix

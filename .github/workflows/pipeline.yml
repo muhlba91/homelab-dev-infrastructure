@@ -124,6 +124,53 @@ jobs:
         env:
           CHECK: ${{ matrix.check }}
 
+  # Terraform for the pull requests' host builds (pr.yml, Nix Build): unfree, so not on cache.nixos.org. Saved
+  # from main only: caches of main are readable by every pull request, a pull request's own by itself only.
+  nix-cache:
+    runs-on: ubuntu-latest
+    name: Nix Cache
+
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@91f6a0f59e94dfb2cfed0f4000f36a68ead1d20c # v31.11.4
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: terraform
+        run: |
+          drv=$(nix eval --raw .#nixosConfigurations.fixture-dev.pkgs.terraform.drvPath)
+          echo "key=nix-terraform-$(basename "$drv" | cut -c1-32)" >> "$GITHUB_OUTPUT"
+        working-directory: nix
+
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        with:
+          path: terraform-cache
+          key: ${{ steps.terraform.outputs.key }}
+          lookup-only: true
+
+      # Its closure into a file cache (~40 MB); the dependencies are on cache.nixos.org, but a file cache must hold
+      # the closure to be copied from.
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          out=$(nix build -L --no-link --print-out-paths .#nixosConfigurations.fixture-dev.pkgs.terraform)
+          nix copy --to "file://$GITHUB_WORKSPACE/terraform-cache?compression=zstd" "$out"
+          echo "$out" > "$GITHUB_WORKSPACE/terraform-cache/out-path"
+        working-directory: nix
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: terraform-cache
+          key: ${{ steps.terraform.outputs.key }}
+
   deploy:
     runs-on: ubuntu-latest
     name: Pulumi Deploy
