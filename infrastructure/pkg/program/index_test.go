@@ -1,12 +1,14 @@
 package program_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,9 +25,21 @@ const project = "homelab-dev-infrastructure"
 // enabledLine matches a host file's switch.
 var enabledLine = regexp.MustCompile(`(?m)^enabled: false$`)
 
-// render runs the program under mocks in dir, with the host files of assets/hosts and the host template (all of them
-// enabled if enable is set) and checks the written files.
-func render(t *testing.T, dir string, enable bool) {
+// failingRoleID are the mocks with an AppRole role ID that cannot be read (Vault unreachable, say).
+type failingRoleID struct{ mocks.Mocks }
+
+// Call fails the role ID lookup and answers every other call as the mocks do.
+// args: The function's token and arguments.
+func (m failingRoleID) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
+	if args.Token == "vault:appRole/getAuthBackendRoleId:getAuthBackendRoleId" {
+		return nil, errors.New("vault unreachable")
+	}
+	return m.Mocks.Call(args)
+}
+
+// setup prepares dir for a run of the program: the host files of assets/hosts and the host template (all of them
+// enabled if enable is set), the stack configuration, and stale files below outputs/keys (returned).
+func setup(t *testing.T, dir string, enable bool) []string {
 	t.Helper()
 
 	assets, err := filepath.Abs("../../assets")
@@ -70,6 +84,14 @@ func render(t *testing.T, dir string, enable bool) {
 		require.NoError(t, os.WriteFile(f, []byte("stale"), 0o600))
 	}
 
+	return stale
+}
+
+// render runs the program under mocks in dir (see setup) and checks the written files.
+func render(t *testing.T, dir string, enable bool) {
+	t.Helper()
+
+	stale := setup(t, dir, enable)
 	require.NoError(t, pulumi.RunErr(program.Run, pulumi.WithMocks(project, "test", mocks.Mocks{})))
 
 	for _, f := range stale {
@@ -137,6 +159,11 @@ func assertKeys(t *testing.T, host *hostModel.Config) {
 			assert.NoFileExists(t, filepath.Join(secrets, name))
 		}
 	}
+	if host.UsesVault() {
+		content, err := os.ReadFile(filepath.Join(secrets, "vault-role-id"))
+		require.NoError(t, err)
+		assert.Equal(t, "mock-role-id", string(content))
+	}
 	vars, err := os.ReadFile(filepath.Join("outputs", "hosts", host.Name, "vars.nix"))
 	require.NoError(t, err)
 	assert.Equal(
@@ -167,4 +194,13 @@ func TestRunEnabled(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 
 	render(t, dir, true)
+}
+
+// TestRunFailsWithoutRoleID fails the run when a host's AppRole role ID cannot be read, instead of leaving out its
+// file (Pulumi would delete the bucket copy and the next deploy remove the host's file).
+func TestRunFailsWithoutRoleID(t *testing.T) {
+	setup(t, t.TempDir(), true)
+
+	err := pulumi.RunErr(program.Run, pulumi.WithMocks(project, "test", failingRoleID{}))
+	require.ErrorContains(t, err, "vault unreachable")
 }

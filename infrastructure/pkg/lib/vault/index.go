@@ -41,10 +41,15 @@ func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
 	role := roleName(host)
 	b := backend
 
-	roleID := vaultApprole.GetAuthBackendRoleIdOutput(ctx, vaultApprole.GetAuthBackendRoleIdOutputArgs{
-		Backend:  pulumi.String(backend),
-		RoleName: pulumi.String(role),
-	}).RoleId()
+	// A plain invoke, not the Output form: a failed read must fail the program. A rejected Output only skips the
+	// applies built on it, so the role ID file would silently not be written and its bucket copy deleted.
+	roleID, rErr := vaultApprole.GetAuthBackendRoleId(ctx, &vaultApprole.GetAuthBackendRoleIdArgs{
+		Backend:  &b,
+		RoleName: role,
+	})
+	if rErr != nil {
+		return nil, fmt.Errorf("reading the role ID of %s: %w", role, rErr)
+	}
 
 	secretID, sErr := approle.CreateSecretID(ctx, config.ResourceName(host), &approle.SecretIDOptions{
 		RoleName: pulumi.String(role),
@@ -57,7 +62,7 @@ func Create(ctx *pulumi.Context, host string) (*Credentials, error) {
 	}
 
 	// The role ID is not secret in Vault's sense, but only the host needs it.
-	secretRoleID, _ := pulumi.ToSecret(roleID).(pulumi.StringOutput)
+	secretRoleID, _ := pulumi.ToSecret(pulumi.String(roleID.RoleId)).(pulumi.StringOutput)
 
 	return &Credentials{RoleID: secretRoleID, SecretID: secretID.SecretId}, nil
 }

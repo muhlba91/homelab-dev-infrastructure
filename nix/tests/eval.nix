@@ -128,11 +128,15 @@ lib.runTests {
     ];
   };
 
-  # The secrets each fixture needs, and the machine key readable by the user only.
+  # The secrets each fixture needs, all listed in /etc/dev-secrets (prune keeps them), and the
+  # machine key readable by the user only.
   testSecrets = {
     expr = {
       dev = lib.attrNames dev.config.dev.secrets;
       minimal = lib.attrNames minimal.config.dev.secrets;
+      listed =
+        dev.config.environment.etc.dev-secrets.text
+        == lib.concatLines (lib.attrNames dev.config.dev.secrets);
       githubKey = {
         inherit (dev.config.dev.secrets.github-ssh-key) owner mode;
       };
@@ -149,6 +153,7 @@ lib.runTests {
         "vault-secret-id"
       ];
       minimal = [ ];
+      listed = true;
       githubKey = {
         owner = "daniel";
         mode = "0400";

@@ -1,8 +1,9 @@
 #!/bin/sh
 # Runs as root on the host (./host push-secrets), the secrets as a tar stream on stdin:
 # moves in only changed files (an unchanged one triggers no reload); `prune`, only after a
-# successful deploy, also removes files no longer delivered. Files land 0600 root; the path
-# units apply owner/mode.
+# successful deploy, also removes files no longer delivered, except the ones the system still
+# declares (/etc/dev-secrets): those stay and the push fails (a secret the host data lost).
+# Files land 0600 root; the path units apply owner/mode.
 set -eu
 umask 077
 d=$1
@@ -19,11 +20,17 @@ fi
   echo "no secrets received" >&2
   exit 1
 }
+missing=
 for f in "$d"/*; do
   n=${f##*/}
   if [ "$prune" = prune ] && [ -f "$f" ] && [ ! -e "$t/$n" ]; then
-    rm -f -- "$d/$n"
-    echo "removed $n"
+    if [ -f /etc/dev-secrets ] && grep -qxF -- "$n" /etc/dev-secrets; then
+      echo "kept $n: not delivered, but the system declares it" >&2
+      missing="$missing $n"
+    else
+      rm -f -- "$d/$n"
+      echo "removed $n"
+    fi
   fi
 done
 for f in "$t"/*; do
@@ -33,3 +40,7 @@ for f in "$t"/*; do
     echo "updated $n"
   }
 done
+if [ -n "$missing" ]; then
+  echo "the host data lacks declared secrets:$missing (kept on the host; check the Pulumi run)" >&2
+  exit 1
+fi

@@ -4,6 +4,7 @@
 #     secret fails the activation (deploy-rs rolls back); at boot it is only logged.
 #  2. A path unit per secret re-applies owner/mode and runs its `reload` when the file changes.
 #  3. The directory is not listable (0711); file modes protect the content.
+#  4. /etc/dev-secrets lists the declared names: `push-secrets … prune` never removes one of them.
 {
   config,
   lib,
@@ -68,6 +69,8 @@ in
   };
 
   config = lib.mkIf (secrets != { }) {
+    environment.etc.dev-secrets.text = lib.concatLines (lib.attrNames secrets);
+
     system.activationScripts.devSecrets = {
       deps = [
         "users"
