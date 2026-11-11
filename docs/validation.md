@@ -13,6 +13,8 @@ Sections other than the base system apply only to hosts with that feature enable
 - [ ] VS Code Remote-SSH from the Mac opens a folder on the host
 - [ ] the GitHub machine key works ([install.md](install.md#github-machine-key))
 - [ ] a second `./host install` keeps everything on `/data`
+- [ ] `systemctl --user status claude-code-update` succeeded; `claude --version` is the latest release; after
+  `claude install <older version>`, a start of the unit updates it again
 - [ ] with `user.dotfiles`: `systemctl --user status dotfiles` succeeded; the shell is the dotfiles' zsh; a commit is
   still signed with the machine key
 

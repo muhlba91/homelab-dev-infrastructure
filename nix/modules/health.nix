@@ -1,6 +1,7 @@
 # `dev-health` (./host health, after every deploy). FAIL (exit 1): failed units, the user manager
 # lacking one of the user's groups (a deploy never restarts it), /data missing, Coder, Docker or the
-# Vault token down. warn: failed user units, /data >= 80%, Vault unreachable, pending reboot.
+# Vault token down. warn: failed user units, /data >= 80%, Vault unreachable, Claude Code missing,
+# pending reboot.
 {
   config,
   lib,
@@ -9,6 +10,7 @@
 }:
 let
   cfg = config.dev;
+  inherit (config.users.users.${cfg.user.name}) home;
 in
 {
   environment.systemPackages = [
@@ -77,6 +79,12 @@ in
             echo "FAIL docker (${cfg.user.name}): not active"; rc=1
           fi
         ''}
+        # Installed by a user timer (claude-code.nix): a missing binary is the timer's failure.
+        if v=$(runuser -u ${cfg.user.name} -- ${home}/.local/bin/claude --version 2>/dev/null); then
+          echo "ok   claude code: $v"
+        else
+          echo "warn claude code: not installed (claude-code-update.service)"
+        fi
         for p in kernel initrd kernel-modules; do
           if [ "$(readlink /run/booted-system/$p)" != "$(readlink /run/current-system/$p)" ]; then
             echo "warn reboot required: the booted $p is not the current one"

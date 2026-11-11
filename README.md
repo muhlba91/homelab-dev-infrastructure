@@ -127,6 +127,8 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
 - **Storage:** the OS disk (wiped by every install) and `/data` (homes, Coder, PostgreSQL; kept, grows with the disk).
 - **User:** pinned uid, home on `/data`, linger, SSH keys only, no sudo; commits signed with the GitHub machine key.
 - **Dev environment:** nix-ld, envfs, mise, direnv, `gh`, `vault`.
+- **Claude Code:** Anthropic's native build in `~/.local/bin` (`latest` channel); a user timer installs it and runs
+  `claude update` daily. Log in once by hand (`claude`, then `/login`).
 - **Dotfiles** (`user.dotfiles`): a user timer applies the chezmoi repository daily (`--force`); the system zsh stays
   the fallback.
 - **Docker** (`docker.enabled`): rootless, one daemon per user; ports bind to `127.0.0.1` unless published on the

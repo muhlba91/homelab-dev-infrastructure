@@ -16,6 +16,7 @@
     ./dotfiles.nix
     ./nix-ld.nix
     ./mise.nix
+    ./claude-code.nix
     ./docker.nix
     ./coder.nix
     ./coder-provision.nix

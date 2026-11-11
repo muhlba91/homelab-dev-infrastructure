@@ -485,6 +485,24 @@ lib.runTests {
     };
   };
 
+  # Claude Code: installed and updated by a user timer for the host's user, ~/.local/bin in PATH.
+  testClaudeCode = {
+    expr = {
+      condition = dev.config.systemd.user.services.claude-code-update.unitConfig.ConditionUser;
+      update = lib.hasInfix ''exec "$bin" update'' dev.config.systemd.user.services.claude-code-update.script;
+      install = lib.hasInfix ''"$tmp/claude" install latest'' dev.config.systemd.user.services.claude-code-update.script;
+      timer = dev.config.systemd.user.timers.claude-code-update.wantedBy;
+      inherit (dev.config.environment) localBinInPath;
+    };
+    expected = {
+      condition = "daniel";
+      update = true;
+      install = true;
+      timer = [ "timers.target" ];
+      localBinInPath = true;
+    };
+  };
+
   # Dotfiles: chezmoi for the host's user only, cloned once, then updated; none without the URL.
   testDotfiles = {
     expr = {
