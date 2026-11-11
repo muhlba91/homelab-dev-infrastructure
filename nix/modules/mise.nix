@@ -14,13 +14,14 @@ in
   # release ships.
   nixpkgs.overlays = [ (_: _: { inherit (pkgsUnstable) mise; }) ];
 
-  # The Vault CLI is BSL-licensed (unfree in nixpkgs).
-  dev.unfree = [ "vault" ];
+  # The Vault CLI is BSL-licensed (unfree in nixpkgs): HashiCorp's release binary, as Hydra does
+  # not build unfree packages (`vault` would compile from source, ~17 min in CI).
+  dev.unfree = [ "vault-bin" ];
 
   environment.systemPackages = with pkgs; [
     mise
     gh
-    vault
+    vault-bin
     tmux
     ripgrep
     fd

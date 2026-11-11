@@ -23,7 +23,7 @@ in
         pkgs.gnugrep
       ]
       ++ lib.optionals cfg.vault.enable [
-        pkgs.vault
+        pkgs.vault-bin
         pkgs.jq
       ];
       text = ''

@@ -65,6 +65,7 @@ lib.mkIf v.enable {
   });
 
   services.vault-agent.instances.${instance} = {
+    package = pkgs.vault-bin; # as the CLI (mise.nix)
     user = "vault-agent";
     group = "vault-token";
     settings = {

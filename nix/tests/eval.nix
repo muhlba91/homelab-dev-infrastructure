@@ -306,9 +306,9 @@ lib.runTests {
       unfree = [
         [
           "terraform"
-          "vault"
+          "vault-bin"
         ]
-        [ "vault" ]
+        [ "vault-bin" ]
       ];
     };
   };
