@@ -161,7 +161,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: cachix/install-nix-action@91f6a0f59e94dfb2cfed0f4000f36a68ead1d20c # v31.11.4
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -190,7 +190,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: cachix/install-nix-action@91f6a0f59e94dfb2cfed0f4000f36a68ead1d20c # v31.11.4
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -329,7 +329,7 @@ jobs:
           name: hosts-test
           path: hosts
 
-      - uses: cachix/install-nix-action@91f6a0f59e94dfb2cfed0f4000f36a68ead1d20c # v31.11.4
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -368,7 +368,7 @@ jobs:
           name: hosts-test
           path: hosts
 
-      - uses: cachix/install-nix-action@91f6a0f59e94dfb2cfed0f4000f36a68ead1d20c # v31.11.4
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -421,7 +421,7 @@ jobs:
           name: hosts-preview
           path: hosts
 
-      - uses: cachix/install-nix-action@91f6a0f59e94dfb2cfed0f4000f36a68ead1d20c # v31.11.4
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
