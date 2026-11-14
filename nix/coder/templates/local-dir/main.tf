@@ -29,13 +29,13 @@ data "coder_parameter" "repo" {
 data "coder_parameter" "group" {
   name         = "group"
   display_name = "Group"
-  description  = "Optional: a subfolder of ~/workspaces to put the workspace in (e.g. hochschule-burgenland): lowercase letters, digits, '.', '_' and '-'."
+  description  = "Optional: a subfolder of ~/workspaces to put the workspace in, at most two levels (e.g. homelab or homelab/home-assistant): lowercase letters, digits, '.', '_' and '-'."
   type         = "string"
   default      = ""
   mutable      = false
   validation {
-    regex = "^([a-z0-9][a-z0-9._-]*)?$"
-    error = "Lowercase letters, digits, '.', '_' and '-', starting with a letter or digit (or empty: no group)."
+    regex = "^([a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)?)?$"
+    error = "One or two folder levels separated by '/', each lowercase letters, digits, '.', '_' and '-', starting with a letter or digit (or empty: no group)."
   }
 }
 
@@ -82,8 +82,8 @@ resource "coder_script" "sync_hourly" {
   script       = file("${path.module}/sync.sh")
 }
 
-# The directory: created on the first start, destroyed only when the workspace is deleted (a group
-# folder goes with its last workspace).
+# The directory: created on the first start, destroyed only when the workspace is deleted (empty
+# group folders go with their last workspace).
 resource "terraform_data" "dir" {
   # Only the directory (a changed input would replace the resource: rm -rf of the old directory).
   input = local.dir
@@ -97,7 +97,10 @@ resource "terraform_data" "dir" {
     command = <<-EOT
       rm -rf '${self.input}'
       parent=$(dirname '${self.input}')
-      [ "$(basename "$parent")" = workspaces ] || rmdir "$parent" 2>/dev/null || true
+      while [ "$(basename "$parent")" != workspaces ] && rmdir "$parent" 2>/dev/null; do
+        parent=$(dirname "$parent")
+      done
+      true
     EOT
   }
 }
