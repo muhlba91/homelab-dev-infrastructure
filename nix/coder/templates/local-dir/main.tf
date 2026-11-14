@@ -1,6 +1,8 @@
-# local-dir: a workspace is a directory in ~/workspaces[/<group>] plus a `coder agent` in a systemd
+# local-dir: a workspace is a directory in ~/workspaces[/<group>]/<folder> plus a `coder agent` in a systemd
 # user unit of the host's user (local-exec runs as that user; deploys never restart the unit, linger
 # restores it after a reboot). Stop removes the unit; delete removes the directory.
+# <folder>: the folder parameter, else the repository's name, else the workspace name (which then only
+# names the workspace in Coder and its agent unit).
 
 terraform {
   # terraform_data needs 1.4.
@@ -19,13 +21,31 @@ data "coder_workspace" "me" {}
 data "coder_parameter" "repo" {
   name         = "repo"
   display_name = "Repository"
-  description  = "Optional repository to clone (e.g. git@github.com:owner/repo.git); fast-forwarded while the working tree is clean."
+  description  = "Optional repository to clone (e.g. git@github.com:owner/repo.git); fast-forwarded while the working tree is clean. Its name is the default folder name."
   type         = "string"
   default      = ""
   mutable      = false
+  validation {
+    regex = "^([^\\s']*[/:][A-Za-z0-9][A-Za-z0-9._-]*/?)?$"
+    error = "A git URL whose last path segment is a repository name (letters, digits, '.', '_', '-'), or empty."
+  }
 }
 
-# Immutable: the directory follows from it, and a changed directory would be a new (empty) one.
+data "coder_parameter" "folder" {
+  name         = "folder"
+  display_name = "Folder"
+  description  = "Optional: the workspace's folder name in ~/workspaces[/<group>]. Default: the repository's name, else the workspace name."
+  type         = "string"
+  default      = ""
+  mutable      = false
+  validation {
+    regex = "^([A-Za-z0-9][A-Za-z0-9._-]*)?$"
+    error = "Letters, digits, '.', '_' and '-', starting with a letter or digit (or empty: the default)."
+  }
+}
+
+# Immutable (like repo and folder): the directory follows from them, and a changed directory would be a
+# new (empty) one.
 data "coder_parameter" "group" {
   name         = "group"
   display_name = "Group"
@@ -40,10 +60,15 @@ data "coder_parameter" "group" {
 }
 
 locals {
-  name   = lower(data.coder_workspace.me.name)
-  group  = data.coder_parameter.group.value
-  parent = pathexpand(local.group == "" ? "~/workspaces" : "~/workspaces/${local.group}")
-  dir    = "${local.parent}/${local.name}"
+  name     = lower(data.coder_workspace.me.name)
+  group    = data.coder_parameter.group.value
+  repo     = data.coder_parameter.repo.value
+  repo_dir = local.repo == "" ? "" : trimsuffix(regex("([^/:]+)/?$", local.repo)[0], ".git")
+  folder   = coalesce(data.coder_parameter.folder.value, local.repo_dir, local.name)
+  parent   = pathexpand(local.group == "" ? "~/workspaces" : "~/workspaces/${local.group}")
+  dir      = "${local.parent}/${local.folder}"
+  # Records that this workspace created the directory: delete removes only a directory it owns.
+  marker = pathexpand("~/.local/state/coder-dirs/${data.coder_workspace.me.id}")
 
   unit    = "coder-agent-${local.name}"
   state   = pathexpand("~/.local/state/coder-agents/${local.name}")
@@ -60,7 +85,7 @@ resource "coder_agent" "main" {
     GIT_SSH_COMMAND = "ssh"
     # For sync.sh.
     WORKSPACE_DIR  = local.dir
-    WORKSPACE_REPO = data.coder_parameter.repo.value
+    WORKSPACE_REPO = local.repo
   }
 }
 
@@ -85,22 +110,41 @@ resource "coder_script" "sync_hourly" {
 # The directory: created on the first start, destroyed only when the workspace is deleted (empty
 # group folders go with their last workspace).
 resource "terraform_data" "dir" {
-  # Only the directory (a changed input would replace the resource: rm -rf of the old directory).
-  input = local.dir
-
-  provisioner "local-exec" {
-    command = "mkdir -p '${self.input}'"
+  # Only the directory and its marker (a changed input would replace the resource: rm -rf of the old
+  # directory).
+  input = {
+    dir    = local.dir
+    marker = local.marker
   }
 
+  # An existing directory belongs to another workspace (or is left over): fail instead of sharing it,
+  # since deleting either workspace would remove the other's files.
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      if [ -e '${self.input.dir}' ]; then
+        echo '${self.input.dir} already exists (another workspace?): choose another folder or group.' >&2
+        exit 1
+      fi
+      mkdir -p '${self.input.dir}' "$(dirname '${self.input.marker}')"
+      printf '%s\n' '${self.input.dir}' > '${self.input.marker}'
+    EOT
+  }
+
+  # Only a directory this workspace created (marker matches); then every group folder left empty.
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      rm -rf '${self.input}'
-      parent=$(dirname '${self.input}')
-      while [ "$(basename "$parent")" != workspaces ] && rmdir "$parent" 2>/dev/null; do
-        parent=$(dirname "$parent")
-      done
-      true
+      if [ "$(cat '${self.input.marker}' 2>/dev/null)" = '${self.input.dir}' ]; then
+        rm -rf '${self.input.dir}'
+        parent=$(dirname '${self.input.dir}')
+        while [ "$(basename "$parent")" != workspaces ] && rmdir "$parent" 2>/dev/null; do
+          parent=$(dirname "$parent")
+        done
+      else
+        echo 'not removing ${self.input.dir}: not created by this workspace' >&2
+      fi
+      rm -f '${self.input.marker}'
     EOT
   }
 }
