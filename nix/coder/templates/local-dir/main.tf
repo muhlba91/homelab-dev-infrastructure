@@ -110,11 +110,11 @@ resource "coder_script" "sync_hourly" {
 # The directory: created on the first start, destroyed only when the workspace is deleted (empty
 # group folders go with their last workspace).
 resource "terraform_data" "dir" {
-  # Only the directory and its marker (a changed input would replace the resource: rm -rf of the old
-  # directory).
+  # What the destroy provisioner needs: the directory, its marker and the agent's state dir.
   input = {
     dir    = local.dir
     marker = local.marker
+    state  = local.state
   }
 
   # An existing directory belongs to another workspace (or is left over): fail instead of sharing it,
@@ -145,6 +145,9 @@ resource "terraform_data" "dir" {
         echo 'not removing ${self.input.dir}: not created by this workspace' >&2
       fi
       rm -f '${self.input.marker}'
+      # The agent's logs and script data (kept across stops; older workspaces lack the key).
+      state='${try(self.input.state, "")}'
+      if [ -n "$state" ]; then rm -rf "$state"; fi
     EOT
   }
 }
