@@ -107,3 +107,24 @@ paseo:
   # optional: the name a TLS-terminating proxy forwards (allowed Host header, its X-Forwarded-* headers trusted from
   # the trusted networks); default none
   hostname: paseo.example.org
+
+# optional cleanup of the user's home: a user timer (`dev-cleanup --dry-run` previews); the values shown are the
+# defaults
+cleanup:
+  # age (<n>d): unused Docker data and mise's download cache older than this, Pulumi plugins unused for this long
+  # and older logs go
+  olderThan: 14d
+  # a systemd OnCalendar expression (check one with `systemd-analyze calendar`)
+  schedule: weekly
+  # with docker.enabled: unused images, stopped containers, networks, build cache, then every anonymous volume no
+  # container uses, regardless of age (a removed container's data goes; named volumes are kept)
+  docker: true
+  # tool versions no config file selects any more
+  mise: true
+  caches:
+    # unused Pulumi plugins, and every cache (Go, pip, uv, npm, yarn, pnpm) larger than maxSize is cleared
+    enabled: true
+    # GiB per cache
+    maxSize: 5
+  # with paseo.enabled: Paseo's daily daemon logs
+  logs: true

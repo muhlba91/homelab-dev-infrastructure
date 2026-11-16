@@ -162,6 +162,34 @@ Data: varsData (pkg/lib/host/vars.go).
     };
     {{- end }}
 
+    {{- with .Host.Cleanup }}
+    cleanup = {
+      {{- with .OlderThan }}
+      olderThan = {{ nix . }};
+      {{- end }}
+      {{- with .Schedule }}
+      schedule = {{ nix . }};
+      {{- end }}
+      {{- with .Docker }}
+      docker = {{ . }};
+      {{- end }}
+      {{- with .Mise }}
+      mise = {{ . }};
+      {{- end }}
+      {{- with .Caches }}
+      {{- with .Enabled }}
+      caches.enable = {{ . }};
+      {{- end }}
+      {{- with .MaxSize }}
+      caches.maxSize = {{ . }};
+      {{- end }}
+      {{- end }}
+      {{- with .Logs }}
+      logs = {{ . }};
+      {{- end }}
+    };
+    {{- end }}
+
     {{- with .Host.Coder }}
     coder = {
       {{- with .Enabled }}

@@ -43,26 +43,4 @@ lib.mkIf cfg.docker.enable {
     TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = socket;
   };
   environment.variables.TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = socket;
-
-  # Unused images, containers, networks and build cache older than two weeks; volumes are kept.
-  systemd.user.services.docker-prune = {
-    description = "Prune unused Docker data older than two weeks";
-    unitConfig.ConditionUser = u.name;
-    after = [ "docker.service" ];
-    requires = [ "docker.service" ];
-    environment.DOCKER_HOST = host;
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${config.virtualisation.docker.rootless.package}/bin/docker system prune --all --force --filter until=336h";
-    };
-  };
-  systemd.user.timers.docker-prune = {
-    wantedBy = [ "timers.target" ];
-    unitConfig.ConditionUser = u.name;
-    timerConfig = {
-      OnCalendar = "weekly";
-      Persistent = true;
-      RandomizedDelaySec = "1h";
-    };
-  };
 }

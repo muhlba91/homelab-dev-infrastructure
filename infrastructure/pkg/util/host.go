@@ -31,6 +31,9 @@ var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$`)
 // dev.paseo.hostname).
 var hostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 
+// cleanupAge matches the cleanup age in days (as nix/modules/options/cleanup.nix's olderThan).
+var cleanupAge = regexp.MustCompile(`^[1-9][0-9]*d$`)
+
 // ParseHostsFromFiles reads the host files (*.yml, *.yaml) of a directory. A file is named after its host,
 // optionally prefixed with its deploy order ([<order>-]<name>.yml); host names are unique.
 // dir: The directory of the host configuration files.
@@ -176,6 +179,9 @@ func checkValues(h *host.Config) error {
 	if err := checkURLs(h); err != nil {
 		return err
 	}
+	if err := checkCleanup(h.Cleanup); err != nil {
+		return err
+	}
 	if h.UsesVault() && h.Vault.Address == nil {
 		return errors.New("vault.address is required when vault.enabled is true")
 	}
@@ -201,6 +207,21 @@ func checkURLs(h *host.Config) error {
 	}
 	if p := h.Paseo; p != nil && p.Hostname != nil && *p.Hostname != "" && !hostnamePattern.MatchString(*p.Hostname) {
 		return fmt.Errorf("paseo.hostname %q: must be a lowercase DNS name (no scheme or path)", *p.Hostname)
+	}
+	return nil
+}
+
+// checkCleanup rejects a cleanup age that is not `<n>d` and a cache size limit below 1 GiB.
+// c: The cleanup configuration (nil: the defaults).
+func checkCleanup(c *host.CleanupConfig) error {
+	if c == nil {
+		return nil
+	}
+	if a := c.OlderThan; a != nil && *a != "" && !cleanupAge.MatchString(*a) {
+		return fmt.Errorf("cleanup.olderThan %q: must be <n>d (n >= 1)", *a)
+	}
+	if k := c.Caches; k != nil && k.MaxSize != nil && *k.MaxSize < 1 {
+		return fmt.Errorf("cleanup.caches.maxSize %d: must be at least 1", *k.MaxSize)
 	}
 	return nil
 }
@@ -243,6 +264,10 @@ func checkStrings(h *host.Config) error {
 	}
 	if p := h.Paseo; p != nil {
 		optional["paseo.hostname"] = p.Hostname
+	}
+	if c := h.Cleanup; c != nil {
+		optional["cleanup.olderThan"] = c.OlderThan
+		optional["cleanup.schedule"] = c.Schedule
 	}
 	for _, field := range slices.Sorted(maps.Keys(optional)) {
 		if value := optional[field]; value != nil {

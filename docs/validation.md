@@ -15,6 +15,8 @@ Sections other than the base system apply only to hosts with that feature enable
 - [ ] a second `./host install` keeps everything on `/data`
 - [ ] `systemctl --user status claude-code-update` succeeded; `claude --version` is the latest release; after
   `claude install <older version>`, a start of the unit updates it again
+- [ ] `dev-cleanup --dry-run` lists what it would delete; `systemctl --user start dev-cleanup` succeeds;
+  `systemctl --user list-timers dev-cleanup` shows the next run
 - [ ] with `user.dotfiles`: `systemctl --user status dotfiles` succeeded; the shell is the dotfiles' zsh; a commit is
   still signed with the machine key
 

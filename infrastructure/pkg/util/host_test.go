@@ -129,17 +129,21 @@ func TestParseHostsValues(t *testing.T) {
 		path  string
 		value any
 	}{
-		"network.domain must not be empty":   {"network.domain", ""},
-		"network.v4.netmask 0: must be 1-32": {"network.v4.netmask", nil},
-		"coder.accessUrl must not be empty":  {"coder.accessUrl", ""},
-		"paseo.hostname must not be empty":   {"paseo.hostname", ""},
-		"paseo.hostname \"https://x\": must": {"paseo.hostname", "https://x"},
-		"paseo.hostname \"a..b\": must":      {"paseo.hostname", "a..b"},
-		"user.uid 999: must be 1000-59999":   {"user.uid", 999},
-		"vault.address is required":          {"vault.enabled", true},
-		"coder.oidc needs an https":          {"coder", map[string]any{"enabled": true, "oidc": true}},
-		"user.dotfiles \"git@x\": must be":   {"user.dotfiles", "git@x"},
-		"field unknown not found":            {"unknown", 1},
+		"network.domain must not be empty":    {"network.domain", ""},
+		"network.v4.netmask 0: must be 1-32":  {"network.v4.netmask", nil},
+		"coder.accessUrl must not be empty":   {"coder.accessUrl", ""},
+		"paseo.hostname must not be empty":    {"paseo.hostname", ""},
+		"paseo.hostname \"https://x\": must":  {"paseo.hostname", "https://x"},
+		"paseo.hostname \"a..b\": must":       {"paseo.hostname", "a..b"},
+		"cleanup.olderThan must not be empty": {"cleanup.olderThan", ""},
+		"cleanup.olderThan \"2w\": must":      {"cleanup.olderThan", "2w"},
+		"cleanup.caches.maxSize 0: must":      {"cleanup.caches.maxSize", 0},
+		"cleanup.schedule must not be empty":  {"cleanup.schedule", ""},
+		"user.uid 999: must be 1000-59999":    {"user.uid", 999},
+		"vault.address is required":           {"vault.enabled", true},
+		"coder.oidc needs an https":           {"coder", map[string]any{"enabled": true, "oidc": true}},
+		"user.dotfiles \"git@x\": must be":    {"user.dotfiles", "git@x"},
+		"field unknown not found":             {"unknown", 1},
 	} {
 		_, err := util.ParseHostsFromFiles(writeHost(t, "host-a.yml", withValue(t, change.path, change.value)))
 		require.ErrorContains(t, err, want, want)

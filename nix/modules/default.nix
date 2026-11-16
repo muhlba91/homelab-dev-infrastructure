@@ -19,6 +19,7 @@
     ./claude-code.nix
     ./paseo.nix
     ./docker.nix
+    ./cleanup.nix
     ./coder.nix
     ./coder-provision.nix
     ./backup.nix

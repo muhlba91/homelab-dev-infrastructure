@@ -143,10 +143,15 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
   API on port 6767 behind a password Pulumi generates (`secrets/paseo-env`, stack output `hosts.<host>.paseo`). With
   `paseo.hostname` behind the home cluster's gateway (`https://paseo.dev.home.muehlbachler.io`). Settings changed in
   its UI persist; agents run the user's `claude`.
+- **Cleanup** (`cleanup`, on by default, each part can be switched off): a weekly user timer runs `dev-cleanup`
+  (`--dry-run` previews): unused Docker data, mise's download cache and Paseo logs older than `cleanup.olderThan`
+  (default 14d), Pulumi plugins unused for as long, every anonymous Docker volume no container uses (a removed
+  container's data), mise tool versions no config selects, and caches (Go, pip, uv, npm, yarn, pnpm) larger than
+  `cleanup.caches.maxSize` (default 5 GiB).
 - **Vault Agent** (`vault.enabled`): a short-lived host token for the user, used by `vault`, fnox and Pulumi.
 - **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` and a global config in `/etc/fnox` with the host's GCP key.
-- **`dev-health`:** failed units, the user manager's groups, `/data` usage, Coder, the Vault token, Docker, pending
-  reboot.
+- **`dev-health`:** failed units (user units warn), the user manager's groups, `/data` usage, Coder, the Vault token,
+  Docker, pending reboot.
 
 ### Ports
 

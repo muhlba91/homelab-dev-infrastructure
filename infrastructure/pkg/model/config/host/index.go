@@ -29,6 +29,8 @@ type Config struct {
 	Vault *VaultConfig `yaml:"vault,omitempty"`
 	// Paseo is the configuration of the Paseo daemon.
 	Paseo *PaseoConfig `yaml:"paseo,omitempty"`
+	// Cleanup is the configuration of the regular cleanup of the user's home.
+	Cleanup *CleanupConfig `yaml:"cleanup,omitempty"`
 }
 
 // IsEnabled reports whether the host is enabled (deployable); unset means disabled.

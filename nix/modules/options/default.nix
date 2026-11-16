@@ -7,5 +7,6 @@
     ./network.nix
     ./user.nix
     ./services.nix
+    ./cleanup.nix
   ];
 }

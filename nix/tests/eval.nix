@@ -363,6 +363,85 @@ lib.runTests {
     };
   };
 
+  # The cleanup: a user timer running dev-cleanup with the host's settings as overridable defaults;
+  # Docker and Paseo's logs only with their service, no timer without a section.
+  testCleanup = {
+    expr =
+      let
+        script =
+          s:
+          (lib.findFirst (p: (p.name or "") == "dev-cleanup") {
+            text = "";
+          } s.config.environment.systemPackages).text;
+        exports = s: v: lib.hasInfix "export ${v}" (script s);
+        svc = dev.config.systemd.user.services.dev-cleanup;
+        disabled = {
+          dev.cleanup = {
+            docker = lib.mkForce false;
+            mise = lib.mkForce false;
+            caches.enable = lib.mkForce false;
+            logs = lib.mkForce false;
+          };
+        };
+      in
+      {
+        dev = lib.all (exports dev) [
+          "CLEANUP_DAYS=\${CLEANUP_DAYS:-14}"
+          "CLEANUP_DOCKER=\${CLEANUP_DOCKER:-1}"
+          "CLEANUP_CACHE_MAX_MB=\${CLEANUP_CACHE_MAX_MB:-5120}"
+          "CLEANUP_CACHE_PATHS=\${CLEANUP_CACHE_PATHS:-.cache/go-build:go/pkg/mod:"
+          "CLEANUP_LOG_GLOBS=\${CLEANUP_LOG_GLOBS:-'.paseo/*-daemon.log'}"
+        ];
+        minimal = lib.all (exports minimal) [
+          "CLEANUP_DOCKER=\${CLEANUP_DOCKER:-0}"
+          "CLEANUP_LOGS=\${CLEANUP_LOGS:-0}"
+          "CLEANUP_MISE=\${CLEANUP_MISE:-1}"
+        ];
+        inherit (dev.config.systemd.user.timers.dev-cleanup.timerConfig) OnCalendar;
+        condition = svc.unitConfig.ConditionUser;
+        after = map (s: s.config.systemd.user.services.dev-cleanup.after) [
+          dev
+          minimal
+        ];
+        oldPrune = dev.config.systemd.user.services ? docker-prune;
+        none = (dev.extendModules { modules = [ disabled ]; }).config.systemd.user.services ? dev-cleanup;
+      };
+    expected = {
+      dev = true;
+      minimal = true;
+      OnCalendar = "weekly";
+      condition = "daniel";
+      after = [
+        [ "docker.service" ]
+        [ ]
+      ];
+      oldPrune = false;
+      none = false;
+    };
+  };
+
+  # Cleanup ages are `<n>d`, cache paths stay inside the home (no '.', '..' or empty segment).
+  testCleanupInvalid = {
+    expr =
+      map (v: fails dev { dev.cleanup.olderThan = lib.mkForce v; }) [
+        "2w"
+        "0d"
+        "14"
+      ]
+      ++ map (p: fails dev { dev.cleanup.caches.paths = lib.mkForce [ p ]; }) [
+        "/tmp"
+        "."
+        ".cache/."
+        ".cache/../.ssh"
+        ""
+        "a/"
+        "a//b"
+        "a:b"
+        "a\nb"
+      ];
+    expected = lib.genList (_: true) 12;
+  };
+
   # Coder's database backed up with restic to <repository>/coder, nightly; only with a repository.
   testBackup = {
     expr = {
