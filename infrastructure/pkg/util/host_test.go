@@ -137,6 +137,7 @@ func TestParseHostsValues(t *testing.T) {
 		"paseo.hostname \"a..b\": must":       {"paseo.hostname", "a..b"},
 		"cleanup.olderThan must not be empty": {"cleanup.olderThan", ""},
 		"cleanup.olderThan \"2w\": must":      {"cleanup.olderThan", "2w"},
+		"cleanup.olderThan \"100000d\": must": {"cleanup.olderThan", "100000d"},
 		"cleanup.caches.maxSize 0: must":      {"cleanup.caches.maxSize", 0},
 		"cleanup.schedule must not be empty":  {"cleanup.schedule", ""},
 		"user.uid 999: must be 1000-59999":    {"user.uid", 999},

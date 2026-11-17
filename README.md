@@ -39,8 +39,8 @@ pulumi stack init prod --secrets-provider \
 Per enabled host, `pulumi up` creates the deploy SSH key, the SSH host key and the GitHub machine key; with Coder the
 admin password and the restic credentials (with `coder.oidc` also the OIDC client secret); with the Vault Agent an
 AppRole secret ID. It writes them and the host's `vars.nix` to `infrastructure/outputs/` and the bucket. Stack output
-`hosts.<host>`: `keys.{deploy,host,github}.public` and `coder.admin` (secret; the bootstrap admin `admin`,
-`admin@<host>.<domain>`).
+`hosts.<host>`: `keys.{deploy,host,github}.public`, `coder.admin` (secret; the bootstrap admin `admin`,
+`admin@<host>.<domain>`) and `paseo.password` (secret).
 
 ### Credentials
 
@@ -132,7 +132,7 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
   in once by hand (`claude`, then `/login`).
 - **Dotfiles** (`user.dotfiles`): a user timer applies the chezmoi repository daily (`--force`); the system zsh stays
   the fallback.
-- **Docker** (`docker.enabled`): rootless, one daemon per user; ports bind to `127.0.0.1` unless published on the
+- **Docker** (`docker.enabled`): rootless, run by the user; ports bind to `127.0.0.1` unless published on the
   host's address and listed in `docker.trustedPorts`.
 - **Coder** (`coder.enabled`): runs as the user; workspaces are directories in `~/workspaces` that sync their
   repository at start and hourly. With an https `coder.accessUrl` it sits behind the home cluster's gateway
@@ -143,11 +143,10 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
   API on port 6767 behind a password Pulumi generates (`secrets/paseo-env`, stack output `hosts.<host>.paseo`). With
   `paseo.hostname` behind the home cluster's gateway (`https://paseo.dev.home.muehlbachler.io`). Settings changed in
   its UI persist; agents run the user's `claude`.
-- **Cleanup** (`cleanup`, on by default, each part can be switched off): a weekly user timer runs `dev-cleanup`
-  (`--dry-run` previews): unused Docker data, mise's download cache and Paseo logs older than `cleanup.olderThan`
-  (default 14d), Pulumi plugins unused for as long, every anonymous Docker volume no container uses (a removed
-  container's data), mise tool versions no config selects, and caches (Go, pip, uv, npm, yarn, pnpm) larger than
-  `cleanup.caches.maxSize` (default 5 GiB).
+- **Cleanup** (`cleanup`, on by default): a weekly user timer runs `dev-cleanup` (`--dry-run` previews): old unused
+  Docker data and every unused anonymous volume, unselected mise versions and old downloads, unused Pulumi plugins,
+  oversized caches (Go, pip, uv, npm, yarn, pnpm), old Paseo logs and the old state of deleted or stopped workspaces'
+  agents. Parts, ages and limits: [host.yml](infrastructure/assets/templates/host.yml).
 - **Vault Agent** (`vault.enabled`): a short-lived host token for the user, used by `vault`, fnox and Pulumi.
 - **fnox** (`vault.enabled`): `FNOX_PROFILE=dev` and a global config in `/etc/fnox` with the host's GCP key.
 - **`dev-health`:** failed units (user units warn), the user manager's groups, `/data` usage, Coder, the Vault token,
@@ -158,8 +157,9 @@ with `deploy.automated: true` are deployed by CI after every `pulumi up` on `mai
 | Port | From | Service |
 | --- | --- | --- |
 | 22/tcp | trusted networks | SSH |
-| 3000/tcp | trusted networks (incl. the cluster gateway) | Coder |
-| `docker.trustedPorts` | trusted networks | containers |
+| 3000/tcp | trusted networks (incl. the cluster gateway) | Coder (`coder.enabled`) |
+| 6767/tcp | trusted networks (incl. the cluster gateway) | Paseo (`paseo.enabled`) |
+| `docker.trustedPorts` | trusted networks | containers (`docker.enabled`) |
 
 ---
 

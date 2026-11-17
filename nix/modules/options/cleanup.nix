@@ -27,9 +27,9 @@ let
 in
 {
   options.dev.cleanup = {
-    olderThan = typedD (types.strMatching "[1-9][0-9]*d") "14d" ''
+    olderThan = typedD (types.strMatching "[1-9][0-9]{0,4}d") "14d" ''
       Age (`<n>d`): unused Docker data and mise's download cache entries older than this, Pulumi
-      plugins unused for this long and older logs are deleted.
+      plugins unused for this long, and older logs and agent state are deleted.
     '';
     schedule = strD "weekly" ''
       When the cleanup runs (a systemd OnCalendar expression; `systemd-analyze calendar` checks one).
@@ -63,7 +63,8 @@ in
     };
     logs = bool true ''
       With dev.paseo.enable: Paseo's daily daemon logs (`~/.paseo/*-daemon.log`) older than
-      olderThan.
+      olderThan. With dev.coder.enable: the state (logs, script data) of workspace agents that have
+      no unit (a deleted or stopped workspace) and nothing newer than olderThan.
     '';
   };
 }

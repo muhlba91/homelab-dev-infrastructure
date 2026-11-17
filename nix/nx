@@ -11,7 +11,8 @@
 # as a known_hosts line; empty: accepted on first use). The folders are mounted read-only at
 # the same paths, so commands use host paths either way. With DEPLOY_KEY, ~/.ssh is written
 # where ssh runs: in the container, or natively on a CI runner only (CI=true).
-# Podman state: volume `nixstore` (/nix). The image: Containerfile (NX_IMAGE overrides it).
+# Podman state: volume `nixstore` (/nix). The image: Containerfile (NX_IMAGE overrides it). A new
+# image failing with "No user exists for uid 0" needs a fresh store: `podman volume rm nixstore`.
 set -eu
 cd "$(dirname "$0")"
 RAW=0

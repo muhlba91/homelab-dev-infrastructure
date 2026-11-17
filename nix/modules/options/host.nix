@@ -60,7 +60,7 @@ in
 
     trusted = {
       v4 = typedD (types.listOf cidr4) [ "10.0.0.0/8" ] ''
-        Networks that may reach the host's ports (SSH, Coder, docker.trustedPorts) and whose
+        Networks that may reach the host's ports (SSH, Coder, Paseo, docker.trustedPorts) and whose
         X-Forwarded-For Coder trusts: our sites and the mesh (NetBird/Tailscale).
       '';
       v6 = typedD (types.listOf cidr6) [

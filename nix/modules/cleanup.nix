@@ -1,7 +1,7 @@
 # The regular cleanup (dev.cleanup): a user timer of the host's user runs `dev-cleanup`
 # (cleanup.sh) with the host's settings baked in; `dev-cleanup --dry-run` shows what it would
-# delete. Docker data, Pulumi plugins and logs by age, mise by use, caches by size (/data is
-# mounted noatime).
+# delete. Docker data, Pulumi plugins, logs and agent state by age, mise by use, caches by size
+# (/data is mounted noatime).
 {
   config,
   lib,
@@ -14,7 +14,9 @@ let
   u = cfg.user;
   docker = c.docker && cfg.docker.enable;
   logGlobs = lib.optional cfg.paseo.enable ".paseo/*-daemon.log";
-  logs = c.logs && logGlobs != [ ];
+  # The local-dir template's agent state dirs (logs, script data): nix/coder/templates/local-dir/main.tf.
+  agentStates = lib.optionalString cfg.coder.enable ".local/state/coder-agents";
+  logs = c.logs && (logGlobs != [ ] || agentStates != "");
   enabled = docker || c.mise || c.caches.enable || logs;
   flag = b: if b then "1" else "0";
   # Defaults the caller's environment may override (`CLEANUP_DAYS=30 dev-cleanup --dry-run`).
@@ -27,6 +29,7 @@ let
     CLEANUP_CACHE_PATHS = lib.concatStringsSep ":" c.caches.paths;
     CLEANUP_LOGS = flag logs;
     CLEANUP_LOG_GLOBS = lib.concatStringsSep ":" logGlobs;
+    CLEANUP_AGENT_STATES = agentStates;
   };
   script = pkgs.writeShellApplication {
     name = "dev-cleanup";
@@ -47,7 +50,7 @@ lib.mkIf enabled {
   environment.systemPackages = [ script ];
 
   systemd.user.services.dev-cleanup = {
-    description = "Prune unused Docker data, tool versions, caches and logs";
+    description = "Prune unused Docker data, tool versions, caches, logs and agent state";
     unitConfig.ConditionUser = u.name;
     # Not Requires=: a Docker that is down fails only its section.
     after = lib.optional docker "docker.service";

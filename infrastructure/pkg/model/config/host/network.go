@@ -16,7 +16,8 @@ type NetworkConfig struct {
 	Nameservers []string `yaml:"nameservers,omitempty"`
 	// ManagementAddress is the address (or name) used to manage the host (default: the IPv4 address).
 	ManagementAddress *string `yaml:"managementAddress,omitempty"`
-	// TrustedNetworks are the networks that may reach the host's services (SSH, Coder) (default: the Nix defaults).
+	// TrustedNetworks are the networks that may reach the host's ports (SSH, Coder, Paseo,
+	// docker.trustedPorts); default: the Nix defaults.
 	TrustedNetworks *TrustedNetworksConfig `yaml:"trustedNetworks,omitempty"`
 }
 

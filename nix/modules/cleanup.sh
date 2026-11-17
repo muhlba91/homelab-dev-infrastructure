@@ -2,12 +2,13 @@
 # dev-cleanup (cleanup.nix prepends the host's settings; writeShellApplication adds errexit, nounset,
 # pipefail): prunes what builds and agents pile up in the user's home. `--dry-run` (or
 # CLEANUP_DRY_RUN=1) shows what would go. Settings from the environment:
-#   CLEANUP_DAYS                              age for Docker data, Pulumi plugins, logs and mise's
-#                                             download cache
-#   CLEANUP_DOCKER, _MISE, _CACHES, _LOGS     1 = run that section
+#   CLEANUP_DAYS                              age for Docker data, Pulumi plugins, logs, agent state
+#                                             and mise's download cache
+#   CLEANUP_DOCKER, _MISE, _CACHES, _LOGS     1 = run that section (_LOGS: logs and agent state)
 #   CLEANUP_CACHE_MAX_MB, CLEANUP_CACHE_PATHS caches (':'-separated, relative to $HOME) and their limit
 #   CLEANUP_LOG_GLOBS                         log files (':'-separated, relative to $HOME, each
 #                                             `<dir>/<file glob>`)
+#   CLEANUP_AGENT_STATES                      Coder agents' state dirs (relative to $HOME; empty: none)
 # Every section runs; a failed one fails the run at the end (a failed user unit: dev-health warns).
 
 dry=
@@ -108,6 +109,24 @@ logs_section() {
         say "${f#"$HOME"/}: older than ${days}d"
         if [ -z "$dry" ]; then rm -f -- "$f"; fi
       done
+  done
+  agent_states
+}
+
+# A Coder agent's state (logs, script data) without its unit (the workspace is deleted or
+# stopped) and unchanged for the age; a start recreates it.
+agent_states() {
+  local rel=${CLEANUP_AGENT_STATES:-} d recent
+  [ -n "$rel" ] && [ -d "$HOME/$rel" ] || return 0
+  for d in "$HOME/$rel"/*/; do
+    d=${d%/}
+    [ -d "$d" ] || continue
+    [ ! -e "$HOME/.config/systemd/user/coder-agent-${d##*/}.service" ] || continue
+    # A find error (an unreadable entry) keeps the dir.
+    recent=$(find "$d" -mmin "-$age_min" -print -quit) || continue
+    [ -z "$recent" ] || continue
+    say "${d#"$HOME"/}: no agent unit, unchanged for ${days}d"
+    if [ -z "$dry" ]; then rm -rf -- "$d"; fi
   done
 }
 

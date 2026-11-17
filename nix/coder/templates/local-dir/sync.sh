@@ -46,10 +46,10 @@ if command -v mise >/dev/null 2>&1; then
     \( -name mise.toml -o -name .mise.toml \) -type f -print |
     while read -r config; do
       d=$(dirname "$config")
-      if (cd "$d" && mise trust --quiet && mise install --quiet >/dev/null 2>&1); then
+      if out=$(cd "$d" && { mise trust --quiet && mise install --quiet; } </dev/null 2>&1); then
         log "mise install done in $d"
       else
-        log "mise install failed in $d"
+        log "mise trust/install failed in $d: $(printf '%s\n' "$out" | tail -n 1)"
       fi
     done
 fi
