@@ -51,7 +51,7 @@ network:
     - 10.46.0.1
   # optional: default: the IPv4 address
   # managementAddress: 10.46.0.10
-  # optional: who may reach SSH, Coder and docker.trustedPorts; default 10.0.0.0/8, fc00::/7, 2001:678:dc0::/48
+  # optional: who may reach SSH, Coder, Paseo and docker.trustedPorts; default 10.0.0.0/8, fc00::/7, 2001:678:dc0::/48
   trustedNetworks:
     v4:
       - 10.0.0.0/8
@@ -112,7 +112,7 @@ paseo:
 # defaults
 cleanup:
   # age (<n>d): unused Docker data and mise's download cache older than this, Pulumi plugins unused for this long
-  # and older logs go
+  # and older logs and agent state go
   olderThan: 14d
   # a systemd OnCalendar expression (check one with `systemd-analyze calendar`)
   schedule: weekly
@@ -126,5 +126,6 @@ cleanup:
     enabled: true
     # GiB per cache
     maxSize: 5
-  # with paseo.enabled: Paseo's daily daemon logs
+  # Paseo's daily daemon logs (with paseo.enabled), and the state (logs, script data) of agents of deleted or
+  # stopped workspaces (with coder.enabled)
   logs: true

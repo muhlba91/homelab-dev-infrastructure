@@ -391,11 +391,13 @@ lib.runTests {
           "CLEANUP_CACHE_MAX_MB=\${CLEANUP_CACHE_MAX_MB:-5120}"
           "CLEANUP_CACHE_PATHS=\${CLEANUP_CACHE_PATHS:-.cache/go-build:go/pkg/mod:"
           "CLEANUP_LOG_GLOBS=\${CLEANUP_LOG_GLOBS:-'.paseo/*-daemon.log'}"
+          "CLEANUP_AGENT_STATES=\${CLEANUP_AGENT_STATES:-.local/state/coder-agents}"
         ];
         minimal = lib.all (exports minimal) [
           "CLEANUP_DOCKER=\${CLEANUP_DOCKER:-0}"
           "CLEANUP_LOGS=\${CLEANUP_LOGS:-0}"
           "CLEANUP_MISE=\${CLEANUP_MISE:-1}"
+          "CLEANUP_AGENT_STATES=\${CLEANUP_AGENT_STATES:-''}"
         ];
         inherit (dev.config.systemd.user.timers.dev-cleanup.timerConfig) OnCalendar;
         condition = svc.unitConfig.ConditionUser;
@@ -427,6 +429,7 @@ lib.runTests {
         "2w"
         "0d"
         "14"
+        "100000d"
       ]
       ++ map (p: fails dev { dev.cleanup.caches.paths = lib.mkForce [ p ]; }) [
         "/tmp"
@@ -438,8 +441,15 @@ lib.runTests {
         "a//b"
         "a:b"
         "a\nb"
+      ]
+      # positive control: the same options with valid values evaluate (a typo would fail above too)
+      ++ [
+        (evaluates dev {
+          dev.cleanup.olderThan = lib.mkForce "99999d";
+          dev.cleanup.caches.paths = lib.mkForce [ ".cache/a.b/c" ];
+        })
       ];
-    expected = lib.genList (_: true) 12;
+    expected = lib.genList (_: true) 14;
   };
 
   # Coder's database backed up with restic to <repository>/coder, nightly; only with a repository.

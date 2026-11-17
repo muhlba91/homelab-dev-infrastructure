@@ -50,7 +50,6 @@ recreate the workspaces from pushed branches.
    `<coder.accessUrl>/api/v2/users/oidc/callback`, and the post-logout URI `<coder.accessUrl>`. Restrict the client
    to the allowed users at the provider (Coder allows sign-ups: whoever the provider lets through gets an account).
 2. The stack config `zitadel` ([README](../README.md#oidc)).
-
 3. `coder.oidc: true` in the host file; merge (CI runs `pulumi up` and the deploy, which delivers
    `secrets/coder-oidc`).
 4. Sign in with SSO at `coder.accessUrl`: the first login creates a member account.

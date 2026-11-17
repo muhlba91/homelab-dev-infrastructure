@@ -32,7 +32,7 @@ var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$`)
 var hostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 
 // cleanupAge matches the cleanup age in days (as nix/modules/options/cleanup.nix's olderThan).
-var cleanupAge = regexp.MustCompile(`^[1-9][0-9]*d$`)
+var cleanupAge = regexp.MustCompile(`^[1-9][0-9]{0,4}d$`)
 
 // ParseHostsFromFiles reads the host files (*.yml, *.yaml) of a directory. A file is named after its host,
 // optionally prefixed with its deploy order ([<order>-]<name>.yml); host names are unique.
@@ -218,7 +218,7 @@ func checkCleanup(c *host.CleanupConfig) error {
 		return nil
 	}
 	if a := c.OlderThan; a != nil && *a != "" && !cleanupAge.MatchString(*a) {
-		return fmt.Errorf("cleanup.olderThan %q: must be <n>d (n >= 1)", *a)
+		return fmt.Errorf("cleanup.olderThan %q: must be <n>d (n 1-99999)", *a)
 	}
 	if k := c.Caches; k != nil && k.MaxSize != nil && *k.MaxSize < 1 {
 		return fmt.Errorf("cleanup.caches.maxSize %d: must be at least 1", *k.MaxSize)

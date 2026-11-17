@@ -41,7 +41,7 @@ Run as the host's user (an SSH session sets `DOCKER_HOST`):
 - [ ] the workspace opens from VS Code (Coder extension and plain Remote-SSH) and from the phone browser (terminal)
 - [ ] a signed commit pushed from the workspace shows "Verified"; `docker run` works in it
 - [ ] the workspace keeps running through a `./host deploy`, and is back after a reboot
-- [ ] deleting a workspace removes its directory, empty group folders and `~/.local/state/coder-agents/<name>`
+- [ ] deleting a workspace removes its directory, empty group folders and `~/.local/state/coder-agents/<owner>--<name>`
 - [ ] `sudo systemctl start restic-backups-coder` succeeds, `sudo restic-coder snapshots` lists it; the restore drill
   in [install.md](install.md#restoring-coders-database) works
 - [ ] `./host deploy` of a system change prints "host: backup (restic-backups-coder.service)" first

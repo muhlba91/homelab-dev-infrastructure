@@ -17,6 +17,7 @@ terraform {
 
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "repo" {
   name         = "repo"
@@ -70,9 +71,12 @@ locals {
   # Records that this workspace created the directory: delete removes only a directory it owns.
   marker = pathexpand("~/.local/state/coder-dirs/${data.coder_workspace.me.id}")
 
-  unit    = "coder-agent-${local.name}"
-  state   = pathexpand("~/.local/state/coder-agents/${local.name}")
-  envfile = pathexpand("~/.config/coder-agents/${local.name}.env")
+  # Unique per owner and workspace (names are per owner; Coder names never contain "--"). The unit
+  # name and state dir are also used by dev-cleanup (nix/modules/cleanup.sh).
+  agent   = "${lower(data.coder_workspace_owner.me.name)}--${local.name}"
+  unit    = "coder-agent-${local.agent}"
+  state   = pathexpand("~/.local/state/coder-agents/${local.agent}")
+  envfile = pathexpand("~/.config/coder-agents/${local.agent}.env")
 }
 
 resource "coder_agent" "main" {
@@ -193,7 +197,7 @@ resource "terraform_data" "agent" {
       printf 'CODER_AGENT_TOKEN=%s\nCODER_AGENT_URL=%s\n' "$TOKEN" 'http://127.0.0.1:3000' > '${local.envfile}'
       cat > ~/.config/systemd/user/${local.unit}.service <<UNIT
       [Unit]
-      Description=Coder agent of workspace ${local.name}
+      Description=Coder agent of workspace ${local.agent}
       After=network-online.target
 
       [Service]
