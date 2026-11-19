@@ -40,8 +40,8 @@ From a checkout of [homelab-router-infrastructure](https://github.com/muhlba91/h
 ./router libvirt-render <path to libvirt/hetzner-fra-dev-001.yml>
 ```
 
-The deploy is idempotent and deletes nothing: run it again after a spec change. The tool is documented in
-`docs/libvirt.md` of that repository.
+The deploy is idempotent and deletes nothing: run it again after a spec change. `./router virsh hetzner-fra-router-001
+<args>` runs `virsh` on the host (from the same folder). The tool is documented in `docs/libvirt.md` of that repository.
 
 ## First install
 
@@ -53,7 +53,7 @@ mesh (NetBird/Tailscale reach the site LANs) or through the hypervisor host as a
 
    ```bash
    # prints the display, for example 127.0.0.1:0
-   virsh -c qemu+ssh://virt@<management address>/system vncdisplay hetzner-fra-dev-001
+   ./router virsh hetzner-fra-router-001 vncdisplay hetzner-fra-dev-001
 
    # forward it, then connect a VNC client to localhost:5900 (plus the display number)
    ssh -N -L 5900:127.0.0.1:<5900 + display number> deploy@<management address>
@@ -87,7 +87,7 @@ mesh (NetBird/Tailscale reach the site LANs) or through the hypervisor host as a
 4. Eject the installer image and remove `iso` from the spec, so that a later deploy does not attach it again:
 
    ```bash
-   virsh -c qemu+ssh://virt@<management address>/system change-media hetzner-fra-dev-001 sdz --eject --live --config
+   ./router virsh hetzner-fra-router-001 change-media hetzner-fra-dev-001 sdz --eject --live --config
    ```
 
 5. Register the GitHub machine key and validate the host: [install.md](install.md), [validation.md](validation.md).
@@ -101,7 +101,7 @@ mounted with `autoResize`, so the filesystem grows at the mount ([install.md](in
 
 ```bash
 # set the new size, for example 300G
-virsh -c qemu+ssh://virt@<management address>/system vol-resize --pool guests hetzner-fra-dev-001-disk1 <new size>
+./router virsh hetzner-fra-router-001 vol-resize --pool guests hetzner-fra-dev-001-disk1 <new size>
 ```
 
 The OS disk (`hetzner-fra-dev-001-disk0`) is wiped by every install and grows the same way.

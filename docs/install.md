@@ -24,11 +24,11 @@ is wiped, `/data` is kept, the secrets are delivered again.
 
 ## Growing the data disk
 
-The data disk has no partition table and `/data` is mounted with `autoResize`: grow the volume on the hypervisor host,
-then reboot the VM; the filesystem grows at the mount.
+The data disk has no partition table and `/data` is mounted with `autoResize`: grow the volume on the hypervisor host
+(from the homelab-router-infrastructure checkout, in `nix/`), then reboot the VM; the filesystem grows at the mount.
 
 ```bash
-virsh -c qemu+ssh://virt@<management address>/system vol-resize --pool guests <host>-disk1 <new size>  # for example 300G
+./router virsh hetzner-fra-router-001 vol-resize --pool guests <host>-disk1 <new size>  # for example 300G
 ./host ssh <host> sudo reboot                                                                          # autoResize grows /data
 ./host health <host>                                                                                   # the new usage of /data
 ```
