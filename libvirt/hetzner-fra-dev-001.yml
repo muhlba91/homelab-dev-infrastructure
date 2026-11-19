@@ -1,0 +1,15 @@
+---
+# the dev VM on a bare-metal router: ./router libvirt-deploy <site> <this file>
+# (homelab-router-infrastructure, docs/libvirt.md)
+name: hetzner-fra-dev-001
+vcpu: 8
+# GiB
+memory: 16
+mac: "bc:24:11:25:ab:8e"
+# sda: OS (the by-id path of the host file), sdb: /data (label data)
+disks:
+  - size: 64
+  - size: 200
+iso:
+  url: https://channels.nixos.org/nixos-26.05/latest-nixos-minimal-x86_64-linux.iso
+  name: nixos-minimal-26.05-x86_64.iso

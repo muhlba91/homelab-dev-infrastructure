@@ -99,6 +99,7 @@ zitadel:
    test, `1xx` OVH, `2xx` Hetzner, `9xx` physical); unknown keys are errors.
 2. Merge: CI runs `pulumi up`.
 3. Create and install the VM: [proxmox.md](docs/proxmox.md).
+   On a bare-metal router the VM is defined by [libvirt/hetzner-fra-dev-001.yml](libvirt/hetzner-fra-dev-001.yml) and created with `./router libvirt-deploy <site> <path to the spec>` from a checkout of homelab-router-infrastructure (its `docs/libvirt.md`).
 4. Register the GitHub machine key: [install.md](docs/install.md#github-machine-key).
 5. Validate: [validation.md](docs/validation.md).
 
