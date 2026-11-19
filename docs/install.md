@@ -19,27 +19,26 @@ Check on the host: `ssh -T git@github.com` greets you; a commit pushed from the 
 
 ## Reinstall
 
-`./host install <host> <ip>` from the installer ([proxmox.md](proxmox.md), without the `mkfs` step): the OS disk
+`./host install <host> <ip>` from the installer ([libvirt.md](libvirt.md), without the `mkfs` step): the OS disk
 is wiped, `/data` is kept, the secrets are delivered again.
 
 ## Growing the data disk
 
-The data disk has no partition table and `/data` is mounted with `autoResize`: grow the disk in Proxmox; the
-filesystem follows at the next boot, or live:
+The data disk has no partition table and `/data` is mounted with `autoResize`: grow the volume on the hypervisor host,
+then reboot the VM; the filesystem grows at the mount.
 
 ```bash
-qm resize <vmid> scsi1 +100G                                              # on the Proxmox host
-./host ssh <host> 'echo 1 | sudo tee /sys/class/block/sdb/device/rescan'  # only if lsblk still shows the old size
-./host ssh <host> sudo resize2fs /dev/disk/by-label/data                  # live; or reboot (autoResize)
-./host health <host>                                                      # the new usage of /data
+virsh -c qemu+ssh://virt@<management address>/system vol-resize --pool guests <host>-disk1 <new size>  # for example 300G
+./host ssh <host> sudo reboot                                                                          # autoResize grows /data
+./host health <host>                                                                                   # the new usage of /data
 ```
 
-Disks cannot shrink: start generous. The OS disk is wiped by every install: resize it in Proxmox, then
+Disks cannot shrink: start generous. The OS disk is wiped by every install: grow `<host>-disk0` the same way, then
 `./host install`.
 
 ## Data disk lost
 
-New disk, formatted once ([proxmox.md](proxmox.md)), `./host install`, then restore Coder's database (below) and
+New disk, formatted once ([libvirt.md](libvirt.md)), `./host install`, then restore Coder's database (below) and
 recreate the workspaces from pushed branches.
 
 ## Coder SSO

@@ -1,4 +1,4 @@
-# Hardware profile: x86_64 QEMU/KVM guest (Proxmox, a cloud VM). Boots with either firmware:
+# Hardware profile: x86_64 QEMU/KVM guest (libvirt/KVM, a cloud VM). Boots with either firmware:
 # GRUB is installed for legacy BIOS (BIOS boot partition) and for UEFI (the removable fallback
 # path on the ESP, so no EFI variables are needed), so a VM can switch between SeaBIOS and OVMF
 # without a reinstall.

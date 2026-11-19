@@ -15,7 +15,7 @@ machine; `./host` installs and deploys it.
 - [infrastructure/](infrastructure/): the Pulumi program (Go); host files in `assets/hosts/`
 - [nix/](nix/): the flake: `modules/` (vars schema in `modules/options/`), `hardware/`, `coder/templates/`,
   `tests/`, and the `host` and `nx` scripts
-- [docs/](docs/): [Proxmox and first install](docs/proxmox.md), [operations](docs/install.md),
+- [docs/](docs/): [libvirt VM and first install](docs/libvirt.md), [operations](docs/install.md),
   [validation](docs/validation.md), [VS Code](docs/vscode.md)
 
 ## Requirements
@@ -98,8 +98,9 @@ zitadel:
    `infrastructure/assets/hosts/<order>-<name>.yml` and set `enabled: true`. The order is the deploy order (`0xx`
    test, `1xx` OVH, `2xx` Hetzner, `9xx` physical); unknown keys are errors.
 2. Merge: CI runs `pulumi up`.
-3. Create and install the VM: [proxmox.md](docs/proxmox.md).
-   On a bare-metal router the VM is defined by [libvirt/hetzner-fra-dev-001.yml](libvirt/hetzner-fra-dev-001.yml) and created with `./router libvirt-deploy <site> <path to the spec>` from a checkout of homelab-router-infrastructure (its `docs/libvirt.md`).
+3. Create and install the VM: define it with [libvirt/hetzner-fra-dev-001.yml](libvirt/hetzner-fra-dev-001.yml),
+   create it with `./router libvirt-deploy <site> <path to the spec>` from a checkout of
+   homelab-router-infrastructure, then install it: [libvirt.md](docs/libvirt.md).
 4. Register the GitHub machine key: [install.md](docs/install.md#github-machine-key).
 5. Validate: [validation.md](docs/validation.md).
 

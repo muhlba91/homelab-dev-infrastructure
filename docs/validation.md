@@ -5,7 +5,7 @@ Sections other than the base system apply only to hosts with that feature enable
 
 ## Base system
 
-- [ ] `./host install` brings up the VM from the ISO; `./host deploy <host>` is a no-op when nothing changed
+- [ ] `./host install` brings up the VM from the installer image; `./host deploy <host>` is a no-op when nothing changed
 - [ ] `./host ssh <host>` works with the pinned host key; `ssh <user>@<address>` works with the YubiKey
 - [ ] `/data` is mounted (`findmnt /data`), the home is `/data/home/<user>`, owned by the pinned uid
 - [ ] `loginctl show-user <user> -p Linger` is `yes`

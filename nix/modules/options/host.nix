@@ -85,7 +85,7 @@ in
       watchdog = typedD (types.strMatching "[0-9]+[smh]") "60s" ''
         Hardware watchdog timeout (`<n>s`, `<n>m`, `<n>h`; `0s` = off): systemd pets the watchdog
         device, and if the system hangs for this long, the hardware resets it. Needs a watchdog
-        device (a Proxmox VM: q35 has one built in; without one, e.g. a cloud VM: `0s`).
+        device (a q35 VM has one built in; a libvirt domain from the router repo has none, like a cloud VM: `0s`).
       '';
       gc = {
         olderThan = typedD (types.strMatching "[0-9]+d") "7d" ''

@@ -22,7 +22,7 @@ hardware:
 
 # optional system settings (the values shown are the defaults)
 system:
-  # 0s = off; needs a watchdog device (Proxmox q35: built in; none, e.g. a cloud VM: 0s)
+  # 0s = off; needs a watchdog device (a q35 VM has one built in; libvirt domains from the router repo have none: 0s)
   watchdog: 60s
   gc:
     # garbage-collect generations older than this, keeping at least `keep`
