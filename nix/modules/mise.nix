@@ -27,6 +27,7 @@ in
     fd
     jq
     yq-go
+    awscli2
     htop
     gnumake
     unzip
