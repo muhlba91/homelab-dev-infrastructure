@@ -6,7 +6,7 @@ require (
 	github.com/muhlba91/pulumi-shared-library v0.0.0-20261118070230-88a0ccce4a43
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3
 	github.com/pulumi/pulumi-vault/sdk/v7 v7.14.1
-	github.com/pulumi/pulumi/sdk/v3 v3.276.0
+	github.com/pulumi/pulumi/sdk/v3 v3.277.0
 	github.com/pulumiverse/pulumi-scaleway/sdk v1.62.1
 	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.12.1
