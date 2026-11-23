@@ -11,15 +11,12 @@ repos:
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
       - id: check-json
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-toml
       - id: check-yaml
-      - id: detect-aws-credentials
-        args: [
-            "--allow-missing-credentials"
-        ]
       - id: detect-private-key
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
@@ -31,8 +28,22 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
   - repo: local
     hooks:
+      - id: shellcheck
+        name: shellcheck
+        language: system
+        entry: shellcheck
+        types: [shell]
+      - id: markdownlint-cli2
+        name: markdownlint-cli2
+        language: system
+        entry: markdownlint-cli2
+        types: [markdown]
       - id: golangci-lint
         name: golangci-lint
         language: system
